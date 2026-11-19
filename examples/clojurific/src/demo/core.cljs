@@ -76,12 +76,9 @@
           ($ todos)
           ($ greeting)))
 
-;; Re-renders whenever a hot reload evaluates this namespace again
+;; Rendering from a top-level form re-renders on every hot reload, with shadow-cljs and
+;; Clojurific alike, since both evaluate a reloaded namespace again
 (defonce dispose (atom nil))
 
-(defn ^:dev/after-load start []
-      (when-let [f @dispose] (f))
-      (reset! dispose (s/render ($ app) (js/document.getElementById "root"))))
-
-(defn init []
-      (start))
+(when-let [f @dispose] (f))
+(reset! dispose (s/render ($ app) (js/document.getElementById "root")))

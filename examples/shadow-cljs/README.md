@@ -1,4 +1,4 @@
-# solid-cljs demo
+# solid-cljs demo with shadow-cljs
 
 A small app that uses solid-cljs with Solid 2 as a git dependency: a counter, a todo list and an
 async greeting under `s/loading`.
@@ -8,7 +8,7 @@ async greeting under `s/loading`.
 Needs Node.js 22, Java 17 or later and the [Clojure CLI](https://clojure.org/guides/install_clojure).
 
 ```bash
-cd examples/demo
+cd examples/shadow-cljs
 yarn install
 yarn dev
 ```

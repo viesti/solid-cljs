@@ -44,7 +44,7 @@ npm i solid-js @solidjs/web @solidjs/h
 ```
 
 shadow-cljs reads deps.edn when shadow-cljs.edn sets `:deps true`. The
-[`examples/demo`](examples/demo) folder is a complete app set up this way.
+[`examples`](examples) folder has the same demo app set up with shadow-cljs, with Clojurific and with Squint.
 
 ### Bundling
 
