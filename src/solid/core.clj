@@ -1,6 +1,7 @@
 (ns solid.core
-    (:refer-clojure :exclude [if when for cond case try if-let when-let if-some when-some or some-> some->>])
+    (:refer-clojure :exclude [if when for cond case try if-let when-let if-some when-some or some-> some->> resolve repeat])
     (:require [clojure.core :as core]
+              [clojure.walk :as walk]
               [solid.compiler :as sc]
               [solid.lint :as lint]
               [solid.props :as props]
@@ -17,9 +18,70 @@
         (true? x)
         (false? x)))
 
+(defn- binding-symbols
+  "Returns the symbols that `form` may bind: the patterns of a let-style vector right after a
+  form's head symbol (as in `let`, `loop`, `for` and `s/for`), every symbol of a parameter
+  vector (after `fn`, after a name, or opening an arity list) or of an odd-length vector after
+  a head, and the names that `catch` and `as->` bind. A data vector in those positions counts
+  too, which only keeps a prop from being rewritten."
+  [form]
+  (let [found (volatile! #{})
+        collect (fn collect [x]
+                  (core/cond
+                    (symbol? x) (vswap! found conj x)
+                    (coll? x) (run! collect (if (map? x) (concat (keys x) (vals x)) x))))]
+    (walk/prewalk (fn [x]
+                    (core/when (core/and (seq? x) (symbol? (first x)))
+                      (let [[head a b] x]
+                        (core/cond
+                          (#{'catch 'as->} head) (run! collect [a b])
+                          ;; Parameter vectors bind every symbol in them
+                          (core/and (vector? a) (#{'fn 'fn*} head)) (collect a)
+                          (core/and (symbol? a) (vector? b)) (collect b)
+                          ;; let-style vectors bind the patterns at even positions
+                          (core/and (vector? a) (even? (count a))) (run! collect (take-nth 2 a))
+                          (vector? a) (collect a))
+                        (doseq [arity (rest x)]
+                          (core/when (core/and (seq? arity) (vector? (first arity)))
+                            (collect (first arity))))))
+                    x)
+                  form)
+    @found))
+
+(defn- props-lookups
+  "Splits the map destructuring `m` of a component's props. Returns the symbols to rewrite into
+  prop lookups, each with its lookup form on `props`, and the destructuring that remains."
+  [m props body]
+  (let [bound (binding-symbols body)
+        defaults (:or m)
+        lookup (fn [sym k]
+                 (if (contains? defaults sym)
+                   `(get ~props ~k ~(get defaults sym))
+                   `(get ~props ~k)))
+        candidates (concat
+                     (core/for [k (:keys m)]
+                       [(symbol (name k)) (keyword (namespace k) (name k)) [:keys k]])
+                     (core/for [[k v] m :when (core/and (symbol? k) (keyword? v))]
+                       [k v [:entry k]]))
+        rewritten (remove (fn [[sym]] (contains? bound sym)) candidates)
+        remaining (reduce (fn [m [sym _ [kind k]]]
+                            (core/case kind
+                              :keys (update m :keys #(vec (remove #{k} %)))
+                              :entry (dissoc m k)))
+                          (dissoc m :as)
+                          rewritten)
+        remaining (cond-> remaining (empty? (:keys remaining)) (dissoc :keys))]
+    {:lookups (into {} (core/for [[sym k] rewritten] [sym (lookup sym k)]))
+     :kept (map first (remove (set rewritten) candidates))
+     :remaining (core/when (seq (dissoc remaining :or)) remaining)}))
+
 (defmacro defui
           "Defines a Solid UI component. Supports docstrings and metadata.
-  
+
+  Props destructured with a map in the argument list stay reactive: each use of a destructured
+  name reads the prop at that point. A name that the body binds again, in a binding vector or
+  map, is read once instead, and the compiler warns about it.
+
   Example:
   ```clojure
   (defui my-component
@@ -36,14 +98,22 @@
                                     [(first args) (rest args)]
                                     [nil args])
                 [params & body] args
-                props (first params)
+                props-param (first params)
                 meta-map (core/cond-> {}
                                       docstring (assoc :doc docstring)
-                                      attr-map (merge attr-map))]
-    ;; Lint the component body for reactivity issues
-               (lint/lint-component-body! sym body &env)
+                                      attr-map (merge (dissoc attr-map :solid/lint)))
+                props-sym (if (map? props-param)
+                            (core/or (:as props-param) (gensym "props"))
+                            (core/or props-param (gensym "props")))
+                {:keys [lookups kept remaining]} (core/when (map? props-param)
+                                                   (props-lookups props-param props-sym body))
+                body (walk/postwalk-replace lookups body)]
+               (core/when-not (false? (:solid/lint attr-map))
+                 (lint/lint-component-body! sym body &env)
+                 (core/when (seq kept) (lint/warn-destructured-props! sym kept &env)))
                `(defn ~(with-meta sym meta-map) [props#]
-                      (let [~(core/or props (gensym "props")) (solid.core/-props props#)]
+                      (let [~props-sym (solid.core/-props props#)
+                            ~@(core/when remaining [remaining props-sym])]
                            ~@body))))
 
 (defn- wrap-children [children]
@@ -225,7 +295,7 @@
                                          (-> ~g ~step)))
                            forms)]
                `(let [~g ~expr
-                      ~@(interleave (repeat g) steps)]
+                      ~@(interleave (core/repeat g) steps)]
                      ~g)))
 
 (defmacro some->>
@@ -243,34 +313,84 @@
                                          (->> ~g ~step)))
                            forms)]
                `(let [~g ~expr
-                      ~@(interleave (repeat g) steps)]
+                      ~@(interleave (core/repeat g) steps)]
                      ~g)))
 
+(defn- loop-options
+  "Splits the binding vector of `s/for`, `s/index` and `s/repeat` into the binding, the
+  collection and an options map."
+  [[binding expr & opts]]
+  (assert (even? (count opts)) "options after the collection come in pairs, like :fallback x")
+  [binding expr (apply hash-map opts)])
+
+(defn- loop-props
+  "Returns the getters and statics of a list component's options."
+  [{:keys [fallback key]}]
+  (core/cond-> {}
+    fallback (assoc :fallback `(fn [] ~fallback))
+    key (assoc :key key)))
+
 (defmacro for
-          "Solid's `For` component in Clojure’s `for` syntax
+  "Solid's `For` component in Clojure's `for` syntax. Options follow the collection:
+  `:fallback` renders when the collection is empty, and `:key` is a function that returns the
+  key of an item. With `:key`, the item is derefable, as in `s/index`.
   ```clojure
-  (s/for [[x idx] xs]
+  (s/for [[x idx] xs :fallback ($ :li \"none\")]
     ($ :li x))
   ```"
-          [[[v idx] expr] body]
-          (let [idx (core/or idx (gensym "_"))]
-               `(-for (fn [] (js/Array.from ~expr))
-                      (fn [~v idx#]
-                          (let [~idx (-wrap idx#)]
-                               ~body)))))
+  [bindings body]
+  (let [[[v idx] expr opts] (loop-options bindings)
+        idx (core/or idx (gensym "_"))
+        item (gensym "item")]
+    `(-for (fn [] (js/Array.from ~expr))
+           (fn [~item idx#]
+             (let [~v ~(if (:key opts) `(-wrap ~item) item)
+                   ~idx (-wrap idx#)]
+               ~body))
+           ~(loop-props opts))))
 
 (defmacro index
-          "Solid's `Index` component in Clojure’s `for` syntax
+  "Solid's `For` component without keys, in Clojure's `for` syntax. The item is derefable and
+  the index is a number. `:fallback` may follow the collection.
   ```clojure
   (s/index [[x idx] xs]
     ($ :li @x))
   ```"
-          [[[v idx] expr] body]
-          (let [idx (core/or idx (gensym "_"))]
-               `(-index (fn [] (js/Array.from ~expr))
-                        (fn [v# ~idx]
-                            (let [~v (-wrap v#)]
-                                 ~body)))))
+  [bindings body]
+  (let [[[v idx] expr opts] (loop-options bindings)
+        idx (core/or idx (gensym "_"))]
+    `(-index (fn [] (js/Array.from ~expr))
+             (fn [v# ~idx]
+               (let [~v (-wrap v#)]
+                 ~body))
+             ~(loop-props opts))))
+
+(defmacro repeat
+  "Solid's `Repeat` component: renders `body` `n` times with `i` bound to the index, without
+  diffing a collection. `:fallback` renders when `n` is zero.
+  ```clojure
+  (s/repeat [i @row-count]
+    ($ row {:index i}))
+  ```"
+  [bindings body]
+  (let [[i n opts] (loop-options bindings)]
+    `(-repeat (fn [] ~n) (fn [~i] ~body) ~(loop-props opts))))
+
+(defmacro reveal
+  "Solid's `Reveal` component, which coordinates when the `s/loading` boundaries among
+  `children` reveal their content. `opts` may set `:order` (`:sequential`, `:together` or
+  `:natural`) and `:collapsed`.
+  ```clojure
+  (s/reveal {:order :together}
+    (s/loading ($ spinner) ($ profile))
+    (s/loading ($ spinner) ($ posts)))
+  ```"
+  [& args]
+  (let [[opts children] (if (map? (first args)) [(first args) (rest args)] [{} args])]
+    `(-reveal ~(core/cond-> {}
+                 (:order opts) (assoc "order" (name (:order opts)))
+                 (contains? opts :collapsed) (assoc "collapsed" (:collapsed opts)))
+              ~@(wrap-children children))))
 
 (defmacro cond
           "Solid's `Switch` and `Match` components in Clojure’s `cond` syntax
@@ -336,15 +456,22 @@
                                  ~@(wrap-children children))))
 
 (defmacro loading
-          "Solid's `Loading` component. Renders `fallback` while async reads in
-  `children` are pending.
+  "Solid's `Loading` component. Renders `fallback` while async reads in `children` are
+  pending. Instead of a fallback, the first argument may be a map of `:fallback` and `:on`,
+  whose expression the boundary tracks: a change to what it reads shows the fallback again
+  while the new content loads.
   ```clojure
   (s/loading ($ spinner)
     ($ profile {:user @user}))
-  ```"
-          [fallback & children]
-          `(-loading (fn [] ~fallback) ~@(wrap-children children)))
 
+  (s/loading {:fallback ($ spinner) :on @user-id}
+    ($ profile {:user @user}))
+  ```"
+  [fallback & children]
+  (let [{:keys [on] :as opts} (if (map? fallback) fallback {:fallback fallback})]
+    `(-loading (fn [] ~(:fallback opts))
+               ~(core/when (contains? opts :on) `(fn [] ~on))
+               ~@(wrap-children children))))
 (defmacro batch
           "Runs `body` and applies the signal writes it queued before returning."
           [& body]
@@ -356,3 +483,23 @@
 
 (defmacro lazy [& body]
           `(-lazy (fn [] ~@body)))
+
+(defmacro pending?
+  "Returns true while a change to the value of `body` is in flight, such as an async memo it
+  reads refetching after its input changed.
+  ```clojure
+  ($ :p {:class {:muted (s/pending? (greeting))}} (greeting))
+  ```"
+  [& body]
+  `(solid.core/-pending? (fn [] ~@body)))
+
+(defmacro latest
+  "Returns the value of `body` including writes that are still in flight, where a plain read
+  returns the committed value."
+  [& body]
+  `(solid.core/-latest (fn [] ~@body)))
+
+(defmacro resolve
+  "Returns a promise of the first settled value of `body`, waiting for the async reads in it."
+  [& body]
+  `(solid.core/-resolve-async (fn [] ~@body)))

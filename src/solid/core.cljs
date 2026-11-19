@@ -96,6 +96,13 @@
 (defn -run-hydration-events []
   (sw/runHydrationEvents))
 
+(defn -ref!
+  "Calls the ref `r` with `el`. `r` is a function or a vector or array of functions."
+  [el r]
+  (when r
+    (sw/applyRef (if (vector? r) (into-array r) r) el))
+  js/undefined)
+
 (defn -effect [compute apply]
   (sw/effect compute apply))
 
@@ -228,6 +235,54 @@
       [f]
       (solid/onSettled (fn [] (f) js/undefined)))
 
+(defn on-flush
+      "Runs `f` once, right after the pending updates are applied. For event handlers and
+  effect callbacks."
+      [f]
+      (solid/onFlush #(do (f) js/undefined)))
+
+(defn -pending? [f]
+      (solid/isPending f))
+
+(defn -latest [f]
+      (solid/latest f))
+
+(defn -resolve-async [f]
+      (solid/resolve f))
+
+(defn refresh
+      "Computes the async memo `target` again. The new value replaces the current one quietly,
+  unless `affects` declared the change first."
+      [target]
+      (solid/refresh target))
+
+(defn affects
+      "Declares that work in flight will change `target`, a memo or a store (or the key `k` of a
+  store), so that reads of it are pending until the work settles."
+      ([target] (solid/affects target))
+      ([target k] (solid/affects target k)))
+
+(defn get-owner []
+      (solid/getOwner))
+
+(defn run-with-owner
+      "Runs `f` with the reactive owner `owner`, or with no owner when `owner` is nil."
+      [owner f]
+      (solid/runWithOwner owner f))
+
+(defn from
+      "Returns an async iterable of the values of `source`: a subscribe function
+  `(fn [next error complete] unsubscribe)`, an observable or an async iterable. Read it in a
+  memo, `(s/memo #(s/from source))`."
+      [source]
+      (solid/from source))
+
+(defn map-array
+      "Maps the reactive list `list`, a function returning an array, with `f` called once per
+  item, and returns an accessor of the mapped array."
+      ([list f] (solid/mapArray list f))
+      ([list f opts] (solid/mapArray list f (clj->js opts))))
+
 (defn on-cleanup [f]
       (solid/onCleanup f))
 
@@ -285,12 +340,24 @@
       (flow solid/Show {"when" test "fallback" else}
             {"keyed" true "children" (fn [v] (-resolve (then v)))}))
 
-(defn -for [coll body]
-      (flow solid/For {"each" coll} {"children" (fn [v i] (-resolve (body v i)))}))
+(defn -for [coll body {:keys [fallback key]}]
+      (flow solid/For
+            (cond-> {"each" coll} fallback (assoc "fallback" fallback))
+            (cond-> {"children" (fn [v i] (-resolve (body v i)))}
+              key (assoc "keyed" (if (fn? key) key #(key %))))))
 
-(defn -index [coll body]
-      (flow solid/For {"each" coll}
+(defn -index [coll body {:keys [fallback]}]
+      (flow solid/For
+            (cond-> {"each" coll} fallback (assoc "fallback" fallback))
             {"keyed" false "children" (fn [v i] (-resolve (body v i)))}))
+
+(defn -repeat [n body {:keys [fallback]}]
+      (flow solid/Repeat
+            (cond-> {"count" n} fallback (assoc "fallback" fallback))
+            {"children" (fn [i] (-resolve (body i)))}))
+
+(defn -reveal [opts & children]
+      (flow solid/Reveal {"children" #(into-array children)} opts))
 
 (defn -switch [else pairs]
       (flow solid/Switch
@@ -351,8 +418,10 @@
       (flow solid/Errored {"children" #(into-array children)}
             {"fallback" (fn [err reset] (-resolve (fallback err reset)))}))
 
-(defn -loading [fallback & children]
-      (flow solid/Loading {"fallback" fallback "children" #(into-array children)} {}))
+(defn -loading [fallback on & children]
+      (flow solid/Loading
+            (cond-> {"fallback" fallback "children" #(into-array children)} on (assoc "on" on))
+            {}))
 
 (defn -lazy [f]
       (solid/lazy f))

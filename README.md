@@ -173,6 +173,19 @@ Functions and macros below are a part of `solid.core` namespace:
   ($ :button {:on-click on-click} children))
 ```
 
+Props destructured with a map stay reactive: `defui` replaces each use of a destructured name
+with a lookup of the prop, so `label` below always shows the current value. `:or` defaults
+apply to the lookups.
+
+```clojure
+(defui badge [{:keys [label tone] :or {tone :info}}]
+  ($ :span {:class tone} label))
+```
+
+A name that the body binds again, in a `let`, `fn` parameters or an `s/for` binding, keeps the
+inner binding, so that prop is read once, when the component is created. The compiler warns
+about it. An attribute map of `{:solid/lint false}` turns the component's warnings off.
+
 `$` creates Solid element
 
 ```clojure
@@ -317,6 +330,15 @@ List rendering via [`<For>` component](https://docs.solidjs.com/reference/compon
   ($ :li x))
 ```
 
+Options follow the collection. `:fallback` renders while the collection is empty, and `:key`
+keys items by a function instead of by identity. With `:key`, the item is derefable and
+follows updates to the item with that key.
+
+```clojure
+(s/for [[todo] @todos :key :id :fallback ($ :li "Nothing to do")]
+  ($ :li (:title @todo)))
+```
+
 Non-keyed list rendering via `<For keyed={false}>`, which replaces Solid 1's `<Index>`. The item is derefable and the index is a number.
 
 ```clojure
@@ -324,6 +346,14 @@ Non-keyed list rendering via `<For keyed={false}>`, which replaces Solid 1's `<I
 
 (s/index [[x idx] xs] ;; <- index is added implicitly
   ($ :li @x))
+```
+
+Rendering a count of items without a collection via `<Repeat>`. `:fallback` renders when the
+count is zero.
+
+```clojure
+(s/repeat [i @row-count]
+  ($ row {:index i}))
 ```
 
 Catching rendering errors via [<Errored> component](https://docs.solidjs.com/reference/solid-js/components-jsx/errored).
@@ -348,6 +378,28 @@ Showing a fallback while async reads settle via [<Loading> component](https://do
   (s/loading ($ spinner)
     ($ profile {:user (user)})))
 ```
+
+Once content has rendered, a refetch keeps it on screen. `s/pending?` is true while a change
+is in flight, for showing that the content is updating. A map with `:on` makes the boundary show
+its fallback again when what `:on` reads changes:
+
+```clojure
+(s/loading {:fallback ($ spinner) :on @id}
+  ($ :p {:class {:stale (s/pending? (user))}} (:name (user))))
+```
+
+Coordinating when sibling `s/loading` boundaries reveal their content via `<Reveal>`.
+`:order` is `:sequential` (the default), `:together` or `:natural`.
+
+```clojure
+(s/reveal {:order :together}
+  (s/loading ($ spinner) ($ profile))
+  (s/loading ($ spinner) ($ posts)))
+```
+
+`s/latest` reads a value including writes still in flight, `s/refresh` computes an async memo
+again, `s/affects` declares that work in flight will change a memo or store, and `s/resolve`
+returns a promise of the first settled value of an expression.
 
 ### Lifecycle
 
@@ -383,6 +435,8 @@ Access DOM element via [ref](https://docs.solidjs.com/reference/jsx-attributes/r
   (s/on-mount (fn [] (js/console.log @ref)))
   ($ :button {:ref ref} "press"))
 ```
+
+`:ref` also takes a vector of functions, each called with the element.
 
 Execute side effects after DOM update via [createEffect](https://docs.solidjs.com/reference/solid-js/reactivity/create-effect).
 The first function tracks reads, the second receives its value and may return a cleanup function.
@@ -428,6 +482,10 @@ Created cached computation via [createMemo](https://docs.solidjs.com/reference/b
 ```clojure
 (s/memo (fn [] ...))
 ```
+
+`s/on-flush` runs a function right after the pending updates apply, `s/get-owner` and
+`s/run-with-owner` carry the reactive owner across async code, `s/from` reads an external
+source in a memo, and `s/map-array` maps a reactive list with a function called once per item.
 
 ### Store utilities
 

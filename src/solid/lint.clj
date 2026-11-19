@@ -54,10 +54,11 @@
        "Signals must be dereferenced with @ to read their value.\n"
        "Did you mean `@" (pr-str form) "`?"))
 
-(defmethod ana/error-message ::props-destructured-early [_ {:keys [prop-name]}]
-  (str "Props destructuring for `" prop-name "` loses reactivity.\n"
-       "Access props directly in ($ ...) elements or use inside tracked scopes.\n"
-       "Read https://docs.solidjs.com/concepts/components/props for more context."))
+(defmethod ana/error-message ::props-destructured-early [_ {:keys [prop-name component-name]}]
+  (str "Prop `" prop-name "` of component '" component-name "' is read once and will not update.\n"
+       "defui keeps destructured props reactive, but the body binds `" prop-name "` again "
+       "(or uses it inside a vector or map literal), so the destructured value is used instead.\n"
+       "Rename the inner binding, or read the prop with (:" prop-name " props) where it is used."))
 
 ;; -----------------------------------------------------------------------------
 ;; Tracked Scopes
@@ -85,6 +86,11 @@
     'solid.core/some->> 's/some->>
     'solid.core/batch 's/batch
     'solid.core/loading 's/loading
+    'solid.core/repeat 's/repeat
+    'solid.core/reveal 's/reveal
+    'solid.core/pending? 's/pending?
+    'solid.core/latest 's/latest
+    'solid.core/resolve 's/resolve
     ;; The $ macro creates tracked scopes for element expressions
     'solid.core/$ 's/$ '$
     'solid.core/$h 's/$h '$h})
@@ -94,6 +100,7 @@
   These are lifecycle hooks, timers, event handlers, etc."
   #{'solid.core/on-mount 's/on-mount 'on-mount
     'solid.core/on-settled 's/on-settled 'on-settled
+    'solid.core/on-flush 's/on-flush 'on-flush
     'solid.core/on-cleanup 's/on-cleanup 'on-cleanup
     'js/setTimeout 'js/setInterval 'js/requestAnimationFrame
     'js/requestIdleCallback})
@@ -317,3 +324,13 @@
                          :form v}))))
       (report-errors! env))))
 
+
+(defn warn-destructured-props!
+  "Warns that the destructured props `syms` of a component are read once, since the body binds
+  their names again."
+  [component-name syms env]
+  (when *lint-enabled*
+    (binding [*component-context* (atom {:errors []})]
+      (doseq [sym syms]
+        (add-error! ::props-destructured-early sym {:prop-name sym :component-name component-name}))
+      (report-errors! env))))

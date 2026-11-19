@@ -140,7 +140,7 @@
             (update acc :ops conj (fn [el] `(~k ~el (fn [] ~v))))
 
             (= k :ref)
-            (update acc :ops conj (fn [el] `(when-let [r# ~v] (r# ~el))))
+            (update acc :ops conj (fn [el] `(solid.core/-ref! ~el ~v)))
 
             (event-name n)
             (let [ev (event-name n)]

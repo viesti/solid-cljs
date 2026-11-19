@@ -159,8 +159,8 @@
       attrs
       (-> (into {} (filter (fn [[k _]] (not (symbol? k))) attrs))
           (assoc :ref `(fn [el#]
-                         (let [ref# (or ~ref identity)]
-                           (ref# el#)
+                         (do
+                           (solid.core/-ref! el# ~ref)
                            (doseq [[f# v#] ~directives]
                              (f# el# v#)))))))))
 

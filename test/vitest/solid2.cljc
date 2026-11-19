@@ -6,7 +6,7 @@
      ["vitest" :refer [expect test]]))
 
 (defn- mount [el]
-       (.-container (render (fn [] el))))
+       (.-container (render el)))
 
 (defn- text [^js container selector]
        (.-textContent (.querySelector container selector)))
