@@ -563,6 +563,23 @@ Created cached computation via [createMemo](https://docs.solidjs.com/reference/b
 `s/run-with-owner` carry the reactive owner across async code, `s/from` reads an external
 source in a memo, and `s/map-array` maps a reactive list with a function called once per item.
 
+`s/until` returns a promise of the value of an expression once it is truthy, with an
+optional `:timeout`. `s/repeat-map` maps a count to an array with a function called once per
+index, and `s/create-owner`, `s/disposed?`, `s/hydrating?`, `s/on-hydration-end`,
+`s/lazy-module`, `s/enable-external-source`, `s/configure-client-errors` and
+`s/reset-error-halt!` wrap the rest of Solid's reactive and hydration utilities. On the server,
+`s/respond` and `s/reload` shape server function responses, `s/serialize-cookie` and
+`s/parse-cookie-header` handle cookies, and `s/configure-server-errors` configures error
+reporting.
+
+An event handler may be a vector of a function and data, which calls the function with the
+data and the event without creating a closure per element:
+
+```clojure
+(s/for [[item] @items]
+  ($ :button {:on-click [select-item (:id item)]} (:label item)))
+```
+
 ### Store utilities
 
 Create a store via `createStore` from a map or a JavaScript object. Stores hold plain
@@ -602,7 +619,8 @@ value (which may be a promise), and a function of a draft mutates it, starting f
 (def active (s/projection (fn [] (remove :done? @all-todos)) nil {:key "id"}))
 ```
 
-`s/reconcile!` merges new data into a draft subtree by key, `s/snapshot` and `s/store->clj` copy
+`s/mark-raw` keeps an object out of a store's reactivity, for large values that are replaced
+rather than edited. `s/reconcile!` merges new data into a draft subtree by key, `s/snapshot` and `s/store->clj` copy
 a store's data, and `s/deep` reads all of it in an effect's compute function so that the effect
 follows every change.
 

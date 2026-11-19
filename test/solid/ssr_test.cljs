@@ -155,3 +155,8 @@
     (is (re-find #"<a id=\"home\" href=\"/\"[^>]*aria-current=\"page\"" out))
     (is (not (re-find #"<a id=\"other\"[^>]*aria-current" out)))
     (is (re-find #"<p>Home</p>" out))))
+
+(deftest cookies
+  (is (= {"a" "1" "b" "two"} (s/parse-cookie-header "a=1; b=two")))
+  (is (re-find #"^session=abc; Path=/; Max-Age=60; HttpOnly"
+               (s/serialize-cookie "session" "abc" {:max-age 60 :path "/" :http-only true}))))

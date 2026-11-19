@@ -670,3 +670,10 @@
   "Waits for a promise in `s/action`, and returns its settled value."
   [& _]
   (throw (ex-info "s/yield is only valid inside s/action, outside nested functions" {})))
+
+(defmacro until
+  "Returns a promise that resolves with the value of `expr` once it is truthy. `opts` may set
+  `:timeout`, in milliseconds, after which the promise rejects with `s/TimeoutError`, and
+  `:signal`, an AbortSignal."
+  ([expr] `(solid.core/-until (fn [] ~expr) nil))
+  ([expr opts] `(solid.core/-until (fn [] ~expr) ~opts)))

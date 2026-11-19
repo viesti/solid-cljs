@@ -318,3 +318,24 @@
                       ($ required-ctx {:value "given"} ($ needs-ctx))
                       (s/try ($ needs-ctx) (catch _ ($ :i "missing")))))]
       (.. (expect (.-textContent c)) (toBe "givenmissing")))))
+
+(test
+  "Event data pairs, until, raw store values, repeat-map and owners"
+  (fn []
+    (let [seen (atom nil)
+          on (s/signal false)
+          raw (s/mark-raw #js {:n 1})
+          [st _] (s/store {:items []})
+          c (mount ($ :button {:on-click [(fn [data _e] (reset! seen data)) :payload]} "b"))
+          owner (s/create-owner)
+          squares (s/root (fn [_] (s/repeat-map (fn [] 3) (fn [i] (* i i)))))]
+      (.click (.querySelector c "button"))
+      (.. (expect (= :payload @seen)) (toBe true))
+      (.. (expect (identical? raw (s/mark-raw raw))) (toBe true))
+      (.. (expect (s/sget st :items)) (toBeTruthy))
+      (.. (expect (squares)) (toEqual #js [0 1 4]))
+      (.. (expect (s/disposed? owner)) (toBe false))
+      (.. (expect (s/hydrating?)) (toBe false))
+      (let [p (s/until @on)]
+        (reset! on true)
+        (-> p (.then (fn [v] (.. (expect v) (toBe true)))))))))

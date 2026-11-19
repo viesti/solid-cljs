@@ -114,7 +114,8 @@
 
 (defn -event! [el event-name handler delegate?]
   (when handler
-    (sw/addEvent el event-name handler delegate?)
+    ;; A [handler data] pair calls handler with data and the event
+    (sw/addEvent el event-name (if (vector? handler) (into-array handler) handler) delegate?)
     (when delegate? (sw/delegateEvents #js [event-name])))
   js/undefined)
 
@@ -836,6 +837,74 @@
                                                              "onCompleteShell" on-complete-shell
                                                              "onCompleteAll" on-complete-all}))))
 
+;; More of Solid's API
+
+(defn mark-raw
+      "Marks `value` so that stores hold it as it is, without making it reactive."
+      [value]
+      (solid/markRaw value))
+
+(defn -until [f opts]
+      (solid/until f (when opts (reactive-options opts))))
+
+(def NotReadyError
+      "Solid's error for a read whose value is not ready yet. Throwing it from a computation
+  makes the nearest `s/loading` show its fallback."
+      solid/NotReadyError)
+
+(def TimeoutError
+      "Solid's error for an `s/until` that timed out."
+      solid/TimeoutError)
+
+(defn create-owner
+      "Creates a reactive owner, with an optional map of `:id` and `:transparent`."
+      ([] (solid/createOwner))
+      ([opts] (solid/createOwner (reactive-options opts))))
+
+(defn disposed?
+      "Returns true if the reactive owner `owner` is disposed."
+      [owner]
+      (solid/isDisposed owner))
+
+(defn repeat-map
+      "Returns an accessor of an array of `(f i)` for each index below the number that `count`
+  returns, calling `f` once per index."
+      [count f]
+      (solid/repeat count f))
+
+(defn enable-external-source
+      "Runs Solid's computations inside another reactive system, given its `:factory` and
+  `:untrack` functions."
+      [{:keys [factory untrack]}]
+      (solid/enableExternalSource (render-options {"factory" factory "untrack" untrack})))
+
+(defn configure-client-errors
+      "Configures how the browser reports errors that no `s/try` catches."
+      [opts]
+      (solid/configureClientErrors (reactive-options opts)))
+
+(defn reset-error-halt!
+      "Resumes the reactive system after an uncaught error halted it."
+      []
+      (solid/resetErrorHalt))
+
+(defn hydrating?
+      "Returns true while hydration is in progress."
+      []
+      (solid/isHydrating))
+
+(defn on-hydration-end
+      "Runs `f` once hydration has finished."
+      [f]
+      (solid/onHydrationEnd #(do (f) js/undefined)))
+
+(defn lazy-module
+      "Returns a loader of the module of `f`, a function returning a promise of it, that
+  hydration can find again by `module-url`, for components that `s/lazy` loads from one
+  module."
+      ([f] (solid/lazyModule f))
+      ([f module-url] (solid/lazyModule f module-url)))
+
 ;; Server and document utilities
 
 (def no-hydration
@@ -881,6 +950,32 @@
 (defn redirect
       ([url] (sw/redirect url))
       ([url init] (sw/redirect url (if (map? init) (clj->js init) init))))
+
+(defn respond
+      "Returns `value` with the response status and headers of `init`, for server functions."
+      ([value] (sw/respond value))
+      ([value init] (sw/respond value (if (map? init) (reactive-options init) init))))
+
+(defn reload
+      "Returns a response that tells the client to reload its data."
+      ([] (sw/reload))
+      ([init] (sw/reload (if (map? init) (reactive-options init) init))))
+
+(defn serialize-cookie
+      "Returns a `Set-Cookie` header value for the cookie `cookie-name`, with options such as
+  `:max-age`, `:path`, `:http-only` and `:same-site`."
+      ([cookie-name value] (sw/serializeCookie cookie-name value))
+      ([cookie-name value opts] (sw/serializeCookie cookie-name value (reactive-options opts))))
+
+(defn parse-cookie-header
+      "Returns the cookies of a `Cookie` header as a map of names to values."
+      [header]
+      (js->clj (sw/parseCookieHeader header)))
+
+(defn configure-server-errors
+      "Configures how the server reports and shows errors."
+      [opts]
+      (sw/configureServerErrors (reactive-options opts)))
 
 (defn http-status
       ([code] (sw/httpStatus code))

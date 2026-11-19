@@ -62,7 +62,13 @@ the client, plus a handler wrapper for `handleServerFunctionRequest`. The server
 reach browser bundles: require `:solid/render :dom` for client builds, or remove the server
 branch otherwise. Decide the id scheme (namespace and name).
 
-### 4. Smaller API gaps — todo
+### 4. Smaller API gaps — done
+
+Wrappers in src/solid/core.cljs ("More of Solid's API" and the server utilities), `s/until` as
+a macro, and `[handler data]` vectors for events. Tests: the "Event data pairs, until..." test
+in test/vitest/features.cljs and `cookies` in test/solid/ssr_test.cljs. Thin wrappers without
+their own tests: `enable-external-source`, `configure-client-errors`, `reset-error-halt!`,
+`on-hydration-end`, `lazy-module`, `respond`, `reload`, `configure-server-errors`.
 
 `markRaw`, `until`, `NotReadyError`, `TimeoutError`, `createOwner`, `isDisposed`, `repeat`,
 `enableExternalSource`, `configureClientErrors`, `resetErrorHalt`, `isHydrating`,
