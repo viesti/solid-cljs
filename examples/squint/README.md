@@ -28,7 +28,7 @@ evaluates forms in the open page.
   ```clojure
   :deps {com.github.roman01la/solid-cljs
          {:git/url "https://github.com/viesti/solid-cljs"
-          :git/sha "89975a4acc375b5d76d09d585f9ea5bfae1ae50b"
+          :git/sha "b91c224faa17de993691992f50ea2c680f1c9536"
           :deps/root "squint"}}
   ```
   `:deps/root "squint"` selects the repository's squint directory, which holds only
