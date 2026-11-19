@@ -140,7 +140,9 @@
   `solid.props/prop-name`, and values other than literals and function forms become getters,
   as in Solid's compiled JSX. Without `children`, the object has no children prop."
        [attrs children]
-       (let [entries (cond-> (vec attrs)
+       (let [spread (get attrs :&)
+             attrs (dissoc attrs :&)
+             entries (cond-> (vec attrs)
                        (= 1 (count children))
                        (conj [:children (first children)])
                        (< 1 (count children))
@@ -149,9 +151,10 @@
                                                (if (static-prop? c) c `(fn [] (solid.core/-resolve ~c)))))]))
              getters (remove (fn [[_ v]] (static-prop? v)) entries)
              statics (filter (fn [[_ v]] (static-prop? v)) entries)]
-            `(solid.core/-props-obj
-               (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) `(fn [] (solid.core/-resolve ~v))]) getters))
-               (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) v]) statics)))))
+            (cond->> `(solid.core/-props-obj
+                        (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) `(fn [] (solid.core/-resolve ~v))]) getters))
+                        (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) v]) statics)))
+              spread (list 'solid.core/-merge-spread `(fn [] ~spread)))))
 
 (defn- h-form
   "Returns the form that creates an element or component through Solid's runtime

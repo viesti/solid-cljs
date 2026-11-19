@@ -414,6 +414,82 @@
                        (when (js-in "children" props)
                          (-children #(.-children props)))))
 
+;; Spreading props onto components and attributes onto elements, with `:&`
+
+(defn- spread-source
+      "Returns the JavaScript props object of a spread source: a `defui` props value, a
+  ClojureScript map whose keys become prop names, or a JavaScript object."
+      [src]
+      (cond
+        (instance? ReactiveProps src) (.-props ^js src)
+        (map? src) (let [o #js {}]
+                     (doseq [[k v] src] (aset o (props/prop-name k) v))
+                     o)
+        :else (or src #js {})))
+
+(defn -merge-spread
+      "Merges the spread source that `src-fn` returns under the props object `own`, keeping
+  both reactive. Props in `own` win."
+      [src-fn own]
+      (solid/merge (fn [] (spread-source (src-fn))) own))
+
+(defn merge-props
+      "Merges props sources (`defui` props, maps or JavaScript objects) into props that a
+  component can read, the later sources winning. Getters stay reactive."
+      [& sources]
+      (-props (apply solid/merge (map spread-source sources))))
+
+(defn omit-props
+      "Returns `props` without the props named by the keywords `ks`, staying reactive."
+      [props & ks]
+      (-props (apply solid/omit (spread-source props) (map props/prop-name ks))))
+
+(defn- source-entries
+      "Returns the [name value] pairs of a spread source, with names as written in keywords or
+  in JavaScript."
+      [src]
+      (if (map? src)
+        (for [[k v] src] [(if (keyword? k) (name k) (str k)) v])
+        (let [^js o (spread-source src)]
+          (for [n (js/Object.keys o)] [n (unchecked-get o n)]))))
+
+(defn -element-attrs
+      "Returns the attributes of the spread source `src` for Solid's `spread`, leaving out
+  `explicit`, the attribute names the element sets itself."
+      [src explicit]
+      (let [o #js {}]
+        (doseq [[n v] (source-entries src)
+                :let [attr (props/attr-name n)]
+                :when (and attr (not (contains? explicit attr)))]
+          (aset o attr (case attr
+                         "class" (sc/class-value v)
+                         "style" (sc/interpret-style-map v)
+                         (if (keyword? v) (name v) v))))
+        o))
+
+(defn -spread! [el accessor]
+      (sw/spread el accessor true)
+      js/undefined)
+
+(defn -ssr-spread
+      "Returns the server HTML of the attributes of the spread source `src`, leaving out
+  `explicit`. Events, refs and DOM properties without an attribute are left out."
+      [src explicit]
+      (apply str
+             (for [[n v] (source-entries src)
+                   :let [attr (props/attr-name n)]
+                   :when (and attr
+                              (not (contains? explicit attr))
+                              (not (re-matches #"on[A-Z].*" attr))
+                              (not (#{"ref" "innerHTML" "textContent" "innerText"} attr)))]
+               (case attr
+                 "class" (-ssr-class v)
+                 "style" (-ssr-style (sc/interpret-style-map v))
+                 (-ssr-attr (get {"defaultValue" "value" "defaultChecked" "checked"
+                                  "defaultSelected" "selected" "defaultMuted" "muted"}
+                                 attr attr)
+                            v)))))
+
 (defn -error-boundary [fallback & children]
       (flow solid/Errored {"children" #(into-array children)}
             {"fallback" (fn [err reset] (-resolve (fallback err reset)))}))

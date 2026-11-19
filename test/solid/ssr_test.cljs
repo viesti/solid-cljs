@@ -64,3 +64,13 @@
           (.then (fn [out]
                    (is (re-find #"Moi, world" out))
                    (done)))))))
+
+(defui badge [props]
+  (let [props (s/merge-props {:tone "info"} props)]
+    ($ :span {:class (:tone props)} (:label props))))
+
+(deftest spreads
+  (is (= "<p title=\"own\" class=\"a b\" data-k=\"v\">x</p>"
+         (html ($ :p {:& {:title "spread" :class [:a :b] :data-k "v" :on-click identity} :title "own"} "x"))))
+  (is (= "<span class=\"warn\">own</span>"
+         (html ($ badge {:& {:label "spread" :tone "warn"} :label "own"})))))

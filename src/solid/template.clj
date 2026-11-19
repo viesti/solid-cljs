@@ -7,7 +7,8 @@
               [cljs.env]
               [solid.compiler :as sc]
               [solid.css :as css]
-              [solid.lint :as lint]))
+              [solid.lint :as lint]
+              [solid.props :as props]))
 
 (def svg-elements
      #{"altGlyph" "altGlyphDef" "altGlyphItem" "animate" "animateColor" "animateMotion"
@@ -30,19 +31,7 @@
 (def ^:private void-elements
      #{"area" "base" "br" "col" "embed" "hr" "img" "input" "link" "meta" "source" "track" "wbr"})
 
-(def ^:private dom-properties
-     "Attribute names that are set as DOM properties, to their property names."
-     {"value" "value"
-      "checked" "checked"
-      "selected" "selected"
-      "muted" "muted"
-      "default-value" "defaultValue"
-      "default-checked" "defaultChecked"
-      "default-selected" "defaultSelected"
-      "default-muted" "defaultMuted"
-      "inner-html" "innerHTML"
-      "text-content" "textContent"
-      "inner-text" "innerText"})
+(def ^:private dom-properties props/dom-properties)
 
 (defn- escape-text [s]
        (-> s (str/replace "&" "&amp;") (str/replace "<" "&lt;") (str/replace ">" "&gt;")))
@@ -148,6 +137,13 @@
 
             (#{:class :id} k)
             acc
+
+            (= k :&)
+            (let [explicit (set (keep #(when (keyword? %) (props/attr-name (name %))) (keys attrs)))]
+              (-> acc
+                  (update :ops conj (fn [el]
+                                      `(solid.core/-spread! ~el (fn [] (solid.core/-element-attrs ~v ~explicit)))))
+                  (update :ssr conj `(solid.core/-ssr-spread ~v ~explicit))))
 
             (= k :style)
             (cond
@@ -274,6 +270,11 @@
 (defn- form-head? [sym form]
   (and (seq? form) (= sym (first form))))
 
+(defn- effect-form?
+  "Returns true if an operation on an element creates an effect."
+  [form]
+  (or (form-head? 'solid.core/-effect form) (form-head? 'solid.core/-spread! form)))
+
 (defn- insert-form
   "Returns the form that inserts the dynamic child `c` into `el`. A component is created
   now, as Solid's compiled JSX does, and other children are inserted through an accessor."
@@ -326,8 +327,8 @@
         only (some #(when (:only? %) (insert-form el % nil nil hydratable?)) children)
         own (map #(% el) (:ops node))]
     (-> walked
-        (update :ops #(into (vec (remove (partial form-head? 'solid.core/-effect) own)) %))
-        (update :effects #(into (vec (filter (partial form-head? 'solid.core/-effect) own)) %))
+        (update :ops #(into (vec (remove effect-form? own)) %))
+        (update :effects #(into (vec (filter effect-form? own)) %))
         (update :inserts #(cond->> % only (into [only]))))))
 
 (defn- server-child [{:keys [expr component? only?]} hydratable?]

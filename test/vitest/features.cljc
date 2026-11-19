@@ -128,3 +128,54 @@
           (.then (fn [] (.. (expect (.-textContent c)) (toBe "loading"))))
           (.then #(wait 80))
           (.then (fn [] (.. (expect (.-textContent c)) (toBe "item2"))))))))
+
+(test
+  "Spreading a map onto an element, with explicit attributes winning"
+  (fn []
+    (let [inputs (atom 0)
+          title (s/signal "t1")
+          c (mount ($ :div
+                      ($ :input#a {:& {:type :text :placeholder "spread" :class [:x :y] :on-input #(swap! inputs inc)}
+                                   :placeholder "own"})
+                      ($ :p#b {:& {:title @title :data-k "v"}} "p")))
+          a (q c "#a")
+          b (q c "#b")]
+      (.. (expect (.getAttribute a "type")) (toBe "text"))
+      (.. (expect (.getAttribute a "placeholder")) (toBe "own"))
+      (.. (expect (.-className a)) (toBe "x y"))
+      (.dispatchEvent a (js/Event. "input" #js {:bubbles true}))
+      (.. (expect @inputs) (toBe 1))
+      (.. (expect (.getAttribute b "title")) (toBe "t1"))
+      (.. (expect (.getAttribute b "data-k")) (toBe "v"))
+      (reset! title "t2")
+      (s/flush)
+      (.. (expect (.getAttribute b "title")) (toBe "t2")))))
+
+(defui field [props]
+  ($ :label (:label props) ($ :input {:& (s/omit-props props :label)})))
+
+(defui badge [props]
+  (let [props (s/merge-props {:tone "info"} props)]
+    ($ :span {:class (:tone props)} (:label props))))
+
+(test
+  "Forwarding props to elements and components"
+  (fn []
+    (let [v (s/signal "a")
+          c (mount ($ :div
+                      ($ field {:label "L" :aria-label "lbl" :value @v :stroke-width 2})
+                      ($ badge {:label "plain"})
+                      ($ badge {:& {:label "spread" :tone "warn"} :label "own"})))
+          input (q c "input")
+          badges (.querySelectorAll c "span")]
+      (.. (expect (.-textContent (q c "label"))) (toBe "L"))
+      (.. (expect (.hasAttribute input "label")) (toBe false))
+      (.. (expect (.getAttribute input "aria-label")) (toBe "lbl"))
+      (.. (expect (.getAttribute input "stroke-width")) (toBe "2"))
+      (.. (expect (.-value input)) (toBe "a"))
+      (reset! v "b")
+      (s/flush)
+      (.. (expect (.-value input)) (toBe "b"))
+      (.. (expect (.-className (aget badges 0))) (toBe "info"))
+      (.. (expect (.-textContent (aget badges 1))) (toBe "own"))
+      (.. (expect (.-className (aget badges 1))) (toBe "warn")))))

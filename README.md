@@ -245,6 +245,33 @@ examples:
 Values are passed as they are, so a keyword value stays a keyword, and a JavaScript component
 receives ClojureScript maps and vectors unless the code converts them.
 
+### Spreading props
+
+The `:&` key of an attribute map spreads props onto a component or attributes onto an element,
+like `{...props}` in JSX. The source can be a `defui` props value, a map or a JavaScript object,
+and the attributes written next to `:&` win over the spread ones. Spreads stay reactive.
+
+```clojure
+(defui text-field [props]
+  ($ :label (:label props)
+     ($ :input {:& (s/omit-props props :label) :type :text})))
+
+($ text-field {:label "Name" :placeholder "Ann" :on-input on-name})
+```
+
+`s/merge-props` merges props sources, the later ones winning, and `s/omit-props` leaves props
+out. Both return props that a `defui` component reads with keywords:
+
+```clojure
+(defui button [props]
+  (let [props (s/merge-props {:type :button} props)]
+    ($ :button {:& props})))
+```
+
+On elements, spread names follow attribute rules whether they come from keywords or from
+JavaScript props: `onClick` and `:on-click` are event handlers, and `strokeWidth` and
+`:stroke-width` both set `stroke-width`.
+
 ### Attributes
 
 The `:class` attribute supports multiple formats:
