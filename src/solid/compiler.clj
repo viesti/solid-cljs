@@ -46,24 +46,6 @@
       attrs)
     attrs))
 
-(defn- wrap-reactive-style-value
-  "Wraps style map values in functions for fine-grained reactivity."
-  [v]
-  (if (literal? v)
-    v
-    `(fn [] ~v)))
-
-(defn- wrap-reactive-style
-  "Wraps values inside a style map for fine-grained reactivity."
-  [style]
-  (if (map? style)
-    (reduce-kv
-      (fn [m k v]
-        (assoc m k (wrap-reactive-style-value v)))
-      {}
-      style)
-    style))
-
 (defmulti to-js
           (fn [x]
             (cond
@@ -96,71 +78,98 @@
 
 (defmethod to-js :default [x] x)
 
-(defn- camel-case-dom
-  "Turns kebab-case keyword into camel-case keyword,
-  kebab-cased DOM attributes aria-* and data-* are not converted"
+(def ^:private dom-properties
+  "Attribute names that Solid sets as DOM properties, which are camel-cased."
+  {"inner-html" "innerHTML"
+   "text-content" "textContent"
+   "inner-text" "innerText"
+   "default-value" "defaultValue"
+   "default-checked" "defaultChecked"
+   "default-selected" "defaultSelected"
+   "default-muted" "defaultMuted"})
+
+(defn- camel-case [s]
+  (let [[first-word & words] (str/split s #"-")]
+    (str/join (cons first-word (map str/capitalize words)))))
+
+(defn- attr-name
+  "Camel-cases event handlers such as `:on-click` and DOM properties such as
+  `:inner-html`. Other attribute names are kept as written, since Solid 2 sets
+  them with `setAttribute`."
   [k]
   (if (keyword? k)
-    (let [[first-word & words] (str/split (name k) #"-")]
-      (if (or (empty? words)
-              (= "aria" first-word)
-              (= "data" first-word))
-        k
-        (-> (map str/capitalize words)
-            (conj first-word)
-            str/join
-            keyword)))
+    (let [n (name k)]
+      (cond
+        (str/starts-with? n "on-") (keyword (camel-case n))
+        (dom-properties n) (keyword (dom-properties n))
+        :else k))
     k))
 
-(defn- camel-case-keys
-  "Takes map of attributes and returns same map with camel-cased keys"
-  [m]
-  (if (map? m)
-    (reduce-kv #(assoc %1 (camel-case-dom %2) %3) {} m)
-    m))
+(defn- rename-attrs [m]
+  (reduce-kv #(assoc %1 (attr-name %2) %3) {} m))
+
+(defn- class-name [x]
+  (if (keyword? x) (name x) (str x)))
 
 (defn- compile-class [attrs]
-  (let [class-val (:class attrs)]
-    (cond
-      ;; Map of class -> boolean expression (conditional classes)
-      (map? class-val)
-      (let [class-list (reduce-kv #(assoc %1 %2 `(fn [] ~%3))
-                                  {} class-val)]
-        (-> attrs
-            (dissoc :class)
-            (assoc :class-list class-list)))
-      
-      ;; Vector of class names: [:foo :bar "baz"] -> "foo bar baz"
-      (vector? class-val)
-      (let [class-str (->> class-val
-                           (map #(if (keyword? %) (name %) (str %)))
-                           (str/join " "))]
-        (assoc attrs :class class-str))
-      
-      ;; Otherwise leave as-is (string, keyword, or expression)
-      :else attrs)))
+  (if-not (contains? attrs :class)
+    attrs
+    (let [v (:class attrs)]
+      (assoc attrs :class
+             (cond
+               ;; Map of class -> boolean expression (conditional classes)
+               (map? v)
+               (let [m (to-js (reduce-kv #(assoc %1 (class-name %2) %3) {} v))]
+                 (if (every? literal? (vals v))
+                   m
+                   `(fn [] ~m)))
+
+               ;; Vector of class names: [:foo :bar "baz"] -> "foo bar baz"
+               (vector? v)
+               (if (every? literal? v)
+                 (str/join " " (map class-name (remove nil? v)))
+                 `(fn [] (solid.compiler/class-value ~v)))
+
+               (keyword? v) (name v)
+               (literal? v) v
+               :else `(fn [] (solid.compiler/class-value ~v)))))))
+
+(defn- compile-style [attrs]
+  (if-not (contains? attrs :style)
+    attrs
+    (let [v (:style attrs)]
+      (assoc attrs :style
+             (cond
+               ;; Numeric values of a static map get units in create-element
+               (map? v)
+               (if (every? literal? (vals v))
+                 (to-js v)
+                 `(fn [] (solid.compiler/numeric-style ~(to-js v))))
+
+               (literal? v) v
+               :else `(fn [] (solid.compiler/interpret-style-map ~v)))))))
 
 (defn- compile-directives [attrs]
   (let [ref (:ref attrs)
         directives (filterv (fn [[k _]] (symbol? k)) attrs)]
-    (-> (into {} (filter (fn [[k _]] (not (symbol? k))) attrs))
-        (assoc :ref `(fn [el#]
-                       (let [ref# (or ~ref identity)]
-                         (ref# el#)
-                         (doseq [[f# v#] ~directives]
-                           (f# el# v#))))))))
+    (if (and (nil? ref) (empty? directives))
+      attrs
+      (-> (into {} (filter (fn [[k _]] (not (symbol? k))) attrs))
+          (assoc :ref `(fn [el#]
+                         (let [ref# (or ~ref identity)]
+                           (ref# el#)
+                           (doseq [[f# v#] ~directives]
+                             (f# el# v#)))))))))
 
 (defn compile-attrs [args]
   (let [[attrs & children] args]
     (if (map? attrs)
       (let [attrs (-> attrs
                       wrap-reactive-attrs
-                      (update :style #(if (map? %)
-                                        (to-js (wrap-reactive-style %))
-                                        `(solid.compiler/interpret-style-map ~%)))
+                      compile-style
                       compile-directives
                       compile-class
-                      camel-case-keys
+                      rename-attrs
                       to-js)]
         (into [attrs] children))
       args)))

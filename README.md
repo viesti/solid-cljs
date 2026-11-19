@@ -3,7 +3,7 @@
 [![Clojars Project](https://img.shields.io/clojars/v/com.github.roman01la/solid-cljs.svg)](https://clojars.org/com.github.roman01la/solid-cljs)
 
 ClojureScript bindings to Solid. solid-cljs wraps Solid API documented at [docs.solidjs.com](https://docs.solidjs.com/).
-Compatible with Solid 1.9
+Compatible with Solid 2.0
 
 _Early alpha, unstable and highly experimental_
 
@@ -29,8 +29,30 @@ The solid-cljs macros ensure that reactive expressions remain wrapped in functio
 
 ## Installation
 
-1. `npm i solid-js -D`
+1. `npm i solid-js @solidjs/web @solidjs/h`
 2. `{:deps {com.github.roman01la/solid-cljs {:mvn/version "0.1.1"}}}`
+
+shadow-cljs cannot bundle `@solidjs/web` itself, because the Closure Compiler rejects the
+dynamic `import()` in its hydration code. Let a JavaScript bundler resolve npm packages
+instead: build with `:target :esm` and `:js-options {:js-provider :import}`, then serve or
+bundle the output with Vite (see shadow-cljs.edn and the `example` script in package.json).
+
+### Upgrading from Solid 1
+
+- Signal writes are queued. `@sig` returns the previous value until Solid flushes on the next
+  microtask, or until `(s/flush)`. Consecutive `swap!` calls compose on the queued value.
+- Solid 2 throws when a signal is written while a component body or a computation runs. Write
+  from event handlers, effects, or `s/on-settled`.
+- `s/effect` takes a tracked `compute` function and an `apply` function for the side effects.
+  The single-function form still works but uses Solid's deprecated `createTrackedEffect`.
+- `s/batch` runs its body and applies the queued writes before returning.
+- `s/computed` and `s/resource` are removed, as in Solid 2. Return a Promise from `s/memo` and
+  read it under `s/loading`.
+- `s/on-mount` is an alias of the new `s/on-settled`.
+- Attribute names other than event handlers are passed to the DOM as written: use
+  `:tabindex`, `:stroke-width` and `:viewBox`. `:inner-html` and `:text-content` still map to
+  the DOM properties.
+- Root rendering takes an element or a component: `(s/render ($ app) el)` or `(s/render app el)`.
 
 ## Example
 
@@ -155,7 +177,7 @@ List rendering via [`<For>` component](https://docs.solidjs.com/reference/compon
   ($ :li x))
 ```
 
-List rendering via [`<Index>` component](https://docs.solidjs.com/reference/components/index-component)
+Non-keyed list rendering via `<For keyed={false}>`, which replaces Solid 1's `<Index>`. The item is derefable and the index is a number.
 
 ```clojure
 (def xs [1 2 3])
@@ -164,21 +186,39 @@ List rendering via [`<Index>` component](https://docs.solidjs.com/reference/comp
   ($ :li @x))
 ```
 
-Catching rendering errors via [<ErrorBoundary> component](https://docs.solidjs.com/reference/components/error-boundary)
+Catching rendering errors via [<Errored> component](https://docs.solidjs.com/reference/solid-js/components-jsx/errored).
+Bind a vector to also receive a function that retries rendering.
 
 ```clojure
 (s/try
   ($ my-component {})
   (catch err
     ($ error-view {})))
+
+(s/try
+  ($ my-component {})
+  (catch [err reset]
+    ($ :button {:on-click #(reset)} "retry")))
+```
+
+Showing a fallback while async reads settle via [<Loading> component](https://docs.solidjs.com/reference/solid-js/components-jsx/loading)
+
+```clojure
+(let [user (s/memo #(fetch-user @id))]
+  (s/loading ($ spinner)
+    ($ profile {:user (user)})))
 ```
 
 ### Lifecycle
 
-Run the code after initial rendering via [onMount](https://docs.solidjs.com/reference/lifecycle/on-mount)
+Run the code after initial rendering via `onSettled`.
+A returned function runs as cleanup.
 
 ```clojure
-(s/on-mount (fn [] (prn :component-mounted)))
+(s/on-settled
+  (fn []
+    (let [id (js/setInterval tick 1000)]
+      #(js/clearInterval id))))
 ```
 
 Clean up side effects via [onCleanup](https://docs.solidjs.com/reference/lifecycle/on-cleanup)
@@ -204,31 +244,35 @@ Access DOM element via [ref](https://docs.solidjs.com/reference/jsx-attributes/r
   ($ :button {:ref ref} "press"))
 ```
 
-Execute side effects after DOM update via [createEffect](https://docs.solidjs.com/reference/basic-reactivity/create-effect)
+Execute side effects after DOM update via [createEffect](https://docs.solidjs.com/reference/solid-js/reactivity/create-effect).
+The first function tracks reads, the second receives its value and may return a cleanup function.
 
 ```clojure
-(s/effect (fn [] (prn @value)))
+(s/effect (fn [] @value) (fn [v] (prn v)))
 ```
 
-Execute side effects before DOM update via [createRenderEffect](https://docs.solidjs.com/reference/secondary-primitives/create-render-effect)
+Execute side effects before DOM update via [createRenderEffect](https://docs.solidjs.com/reference/solid-js/advanced/specialized-reactivity/create-render-effect)
 
 ```clojure
-(s/render-effect (fn [] (prn @value)))
+(s/render-effect (fn [] @value) (fn [v] (prn v)))
 ```
 
-Batching multiple signals updates via [batch](https://docs.solidjs.com/reference/reactive-utilities/batch)
+Apply queued signal writes synchronously via `flush`
 
 ```clojure
+(reset! value 1)
+(s/flush)
+@value ;; => 1
+
 (s/batch
   (swap! value1 inc)
   (swap! value2 inc))
 ```
 
-Create reactive computation for side effects, via [createComputed](https://docs.solidjs.com/reference/secondary-primitives/create-computed)
+Create a reactive owner outside rendering, for example in tests, via [createRoot](https://docs.solidjs.com/reference/solid-js/advanced/owner-introspection/create-root)
 
 ```clojure
-(s/computed
-  (prn @value))
+(s/root (fn [dispose] ... (dispose)))
 ```
 
 Separate tracking from re-execution, via [createReaction](https://docs.solidjs.com/reference/secondary-primitives/create-reaction)
@@ -247,11 +291,11 @@ Created cached computation via [createMemo](https://docs.solidjs.com/reference/b
 
 ### Store utilities
 
-Create data store via [createStore](https://docs.solidjs.com/reference/store-utilities/create-store)
+Create data store via `createStore`. The setter receives a draft to mutate.
 
 ```clojure
-(let [[store set-store] (s/store {:value 0})]
-  ...)
+(let [[store set-store] (s/store #js {:value 0})]
+  (set-store (fn [draft] (set! (.-value draft) 1))))
 ```
 
 ## Playground
@@ -259,8 +303,8 @@ Create data store via [createStore](https://docs.solidjs.com/reference/store-uti
 _source in [`dev/app/core.cljs`](src/app/core.cljs)_
 
 1. Install NPM deps
-2. Run local build `yarn example`
-3. Go to [localhost:3000](htpp://localhost:3000)
+2. Run local build `yarn example`, which starts the shadow-cljs watcher and Vite
+3. Go to [localhost:3000](http://localhost:3000)
 
 ## Testing
 
@@ -274,4 +318,10 @@ Or watch tests during development:
 
 ```bash
 yarn test:watch
+```
+
+Run the browser tests with Vitest and Playwright (run `npx playwright install chromium` once):
+
+```bash
+yarn vitest
 ```

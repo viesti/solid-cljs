@@ -81,7 +81,7 @@
                         :padding "8px 16px"
                         :color "#fafafa"
                         :font-size 32
-                        :line-height 32
+                        :line-height "32px"
                         :text-align :right
                         :align-items :center}}
           (let [{:keys [op value pvalue]} @state

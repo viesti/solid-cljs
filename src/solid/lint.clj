@@ -34,7 +34,7 @@
 (defmethod ana/error-message ::untracked-reactive [_ {:keys [form component-name]}]
   (str "Reactive read `" (pr-str form) "` outside tracked scope in component '" component-name "'.\n"
        "This value will be read once and won't update.\n"
-       "Move inside s/effect, s/computed, s/memo, or use in ($ ...) element attributes/children.\n"
+       "Move inside s/effect, s/memo, or use in ($ ...) element attributes/children.\n"
        "Read https://docs.solidjs.com/concepts/intro-to-reactivity for more context."))
 
 (defmethod ana/error-message ::untracked-event-handler [_ {:keys [form attr tag]}]
@@ -46,8 +46,8 @@
 (defmethod ana/error-message ::async-in-tracked-scope [_ {:keys [form effect-type]}]
   (str "Async operation in tracked scope `" effect-type "`.\n"
        "Async operations (go blocks, Promises) break reactivity tracking.\n"
-       "Use s/resource for async data fetching instead.\n"
-       "Read https://docs.solidjs.com/reference/basic-reactivity/create-resource for more context."))
+       "Return the Promise from s/memo and read it under s/loading instead.\n"
+       "Read https://docs.solidjs.com/reference/solid-js/components-jsx/loading for more context."))
 
 (defmethod ana/error-message ::signal-not-derefed [_ {:keys [form]}]
   (str "Signal `" (pr-str form) "` used without dereferencing.\n"
@@ -67,7 +67,6 @@
 (def tracked-scope-heads
   "Symbols that create tracked scopes where reactive reads are valid."
   #{'solid.core/effect 's/effect 'effect
-    'solid.core/computed 's/computed 'computed
     'solid.core/memo 's/memo 'memo
     'solid.core/reaction 's/reaction 'reaction
     'solid.core/render-effect 's/render-effect 'render-effect
@@ -85,6 +84,7 @@
     'solid.core/some-> 's/some->
     'solid.core/some->> 's/some->>
     'solid.core/batch 's/batch
+    'solid.core/loading 's/loading
     ;; The $ macro creates tracked scopes for element expressions
     'solid.core/$ 's/$ '$})
 
@@ -92,6 +92,7 @@
   "Contexts where reactive reads won't update (called once), but are allowed.
   These are lifecycle hooks, timers, event handlers, etc."
   #{'solid.core/on-mount 's/on-mount 'on-mount
+    'solid.core/on-settled 's/on-settled 'on-settled
     'solid.core/on-cleanup 's/on-cleanup 'on-cleanup
     'js/setTimeout 'js/setInterval 'js/requestAnimationFrame
     'js/requestIdleCallback})

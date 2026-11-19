@@ -13,19 +13,38 @@
 
   (testing "signal reset!"
     (let [sig (s/signal 0)]
-      (reset! sig 5)
-      (is (= 5 @sig) "Value should be 5 after reset!")))
+      (is (= 5 (reset! sig 5)) "reset! should return the new value")
+      (is (= 0 @sig) "Write should be queued until flush")
+      (s/flush)
+      (is (= 5 @sig) "Value should be 5 after reset! and flush")))
+
+  (testing "signal reset! with a function value"
+    (let [f (fn [_] :called)
+          sig (s/signal nil)]
+      (reset! sig f)
+      (s/flush)
+      (is (identical? f @sig) "Function should be stored, not applied")))
 
   (testing "signal swap!"
     (let [sig (s/signal 0)]
-      (swap! sig inc)
+      (is (= 1 (swap! sig inc)) "swap! should return the new value")
+      (s/flush)
       (is (= 1 @sig) "Value should be 1 after swap! inc")))
+
+  (testing "consecutive swap! calls compose before flush"
+    (let [sig (s/signal 0)]
+      (swap! sig inc)
+      (swap! sig inc)
+      (s/flush)
+      (is (= 2 @sig) "Second swap! should see the queued value")))
 
   (testing "signal swap! with multiple args"
     (let [sig (s/signal 10)]
       (swap! sig - 3)
+      (s/flush)
       (is (= 7 @sig) "Value should be 7 after swap! - 3")
       (swap! sig + 1 2)
+      (s/flush)
       (is (= 10 @sig) "Value should be 10 after swap! + 1 2")))
 
   (testing "signal with equals option"
@@ -44,15 +63,40 @@
 
 (deftest memo-test
   (testing "memo creation"
-    (let [sig (s/signal 5)
-          m (s/memo #(* 2 @sig))]
-      (is (= 10 (m)) "Memo should compute derived value"))))
+    (s/root
+      (fn [dispose]
+        (let [sig (s/signal 5)
+              m (s/memo #(* 2 @sig))]
+          (is (= 10 (m)) "Memo should compute derived value")
+          (reset! sig 6)
+          (s/flush)
+          (is (= 12 (m)) "Memo should follow its source"))
+        (dispose)))))
 
 (deftest effect-test
-  (testing "effect execution"
-    (let [executed (atom false)]
-      (s/effect #(reset! executed true))
-      (is @executed "Effect should execute"))))
+  (testing "effect with compute and apply"
+    (s/root
+      (fn [dispose]
+        (let [sig (s/signal 1)
+              seen (atom [])]
+          (s/effect (fn [] @sig) #(swap! seen conj %))
+          (s/flush)
+          (reset! sig 2)
+          (s/flush)
+          (is (= [1 2] @seen) "Effect should apply each value"))
+        (dispose))))
+
+  (testing "single-function effect"
+    (s/root
+      (fn [dispose]
+        (let [sig (s/signal 1)
+              seen (atom [])]
+          (s/effect #(swap! seen conj @sig))
+          (s/flush)
+          (reset! sig 2)
+          (s/flush)
+          (is (= [1 2] @seen) "Effect should re-run on change"))
+        (dispose)))))
 
 (deftest batch-test
   (testing "batch function"
@@ -106,7 +150,10 @@
 (deftest store-test
   (testing "store creation"
     (let [[state set-state] (s/store #js {:count 0})]
-      (is (= 0 (.-count state)) "Store should have initial value"))))
+      (is (= 0 (.-count state)) "Store should have initial value")
+      (set-state (fn [^js draft] (set! (.-count draft) 1)))
+      (s/flush)
+      (is (= 1 (.-count state)) "Store setter should take a draft"))))
 
 ;; ============================================
 ;; Component Definition Tests
@@ -186,14 +233,6 @@
 ;; Computed and Reaction Tests
 ;; ============================================
 
-(deftest computed-test
-  (testing "computed macro"
-    (let [sig (s/signal 5)]
-      (s/computed
-        (* 2 @sig))
-      ;; Computed runs immediately
-      (is true "computed should execute"))))
-
 (deftest reaction-test
   (testing "reaction macro"
     (let [sig (s/signal 5)
@@ -217,6 +256,6 @@
 (deftest deferred-test
   (testing "deferred value"
     (let [sig (s/signal 5)
-          deferred-val (s/deferred #(* 2 @sig))]
+          deferred-val (s/root (fn [_] (s/deferred #(* 2 @sig))))]
       (is (= (deferred-val) 10) "deferred should return the correct calculation"))))
 

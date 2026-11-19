@@ -3,26 +3,29 @@
   "scripts": {
     "test": "shadow-cljs compile test && node -C browser out/test.js",
     "test:watch": "shadow-cljs watch test",
-    "example": "shadow-cljs watch app",
-    "release": "shadow-cljs release app",
-    "vitest": "shadow-cljs compile vitest && vitest --browser=chromium",
+    "example": "shadow-cljs watch app & vite public --port 3000",
+    "release": "shadow-cljs release app && vite build public --outDir ../out/site --emptyOutDir",
+    "vitest": "shadow-cljs compile vitest && vitest run --browser=chromium",
     "vitest:watch": "shadow-cljs watch vitest",
     "build-report": "shadow-cljs run shadow.cljs.build-report app public/report.html"
   },
   "dependencies": {
-    "solid-js": "^1.9.10"
+    "@solidjs/h": "^2.0.2",
+    "@solidjs/web": "^2.0.3",
+    "solid-js": "^2.0.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
-    "@solidjs/router": "^0.15.4",
-    "@solidjs/testing-library": "^0.8.10",
-    "@vitest/browser": "^4.0.16",
-    "@vitest/browser-playwright": "^4.0.16",
-    "@vitest/browser-preview": "^4.0.16",
+    "@playwright/test": "^1.65.1",
+    "@solidjs/router": "^2.0.0",
+    "@solidjs/testing-library": "1.0.0-rc.2",
+    "@vitest/browser": "^4.1.12",
+    "@vitest/browser-playwright": "^4.1.12",
+    "@vitest/browser-preview": "^4.1.12",
     "jsdom": "^27.4.0",
-    "shadow-cljs": "^3.3.4",
-    "vite-plugin-solid": "^2.11.10",
-    "vitest": "^4.0.16"
+    "playwright": "^1.65.1",
+    "shadow-cljs": "^3.5.14",
+    "vite": "^7.3.0",
+    "vitest": "^4.1.12"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
