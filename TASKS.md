@@ -105,6 +105,11 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
 - Custom elements through templates: test properties and attributes.
 - `solid.squint`: store, action and server-rendering helpers.
 
+### Status
+
+Steps 1 to 5 are done, and the examples are pinned to the last library commit and checked
+against it. What remains is under Deferred.
+
 ### Deferred
 
 Server components (`@solidjs/web/frames`), `storage`, `performance-tracks`, trusted types,
