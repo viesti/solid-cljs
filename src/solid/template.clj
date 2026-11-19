@@ -281,8 +281,8 @@
   [el c marker current hydratable?]
   (let [value (cond
                 (:component? c) `(solid.core/-resolve ~(:expr c))
-                hydratable? `(solid.core/-scope (fn [] ~(:expr c)))
-                :else `(fn [] ~(:expr c)))]
+                hydratable? `(solid.core/-scope (fn [] (solid.core/-child ~(:expr c))))
+                :else `(fn [] (solid.core/-child ~(:expr c))))]
     (cond
       current `(solid.core/-insert ~el ~value ~marker ~current)
       marker `(solid.core/-insert ~el ~value ~marker)

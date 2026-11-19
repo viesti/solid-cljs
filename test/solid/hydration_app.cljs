@@ -26,9 +26,15 @@
 (defui card [{:keys [title children]}]
   ($ :article ($ :h2 title) children))
 
+(defui async-greeting []
+  (let [text (s/memo #(js/Promise. (fn [resolve] (js/setTimeout (fn [] (resolve "Moi")) 10))))]
+    ($ :section#async
+       (s/loading ($ :p "loading") ($ :p (text) ", world")))))
+
 (defui app []
   ($ :main
      ($ counter)
      ($ todo-list)
      ($ toggle)
-     ($ card {:title "Card"} ($ :p "body"))))
+     ($ card {:title "Card"} ($ :p "body"))
+     ($ async-greeting)))

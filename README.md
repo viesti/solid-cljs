@@ -614,6 +614,23 @@ On the server, event handlers and refs are left out, `:inner-html` becomes the e
 and Solid replaces the messages of errors that reach `s/try` with "Internal Server Error" unless
 they are marked safe.
 
+`s/use-head` adds tags to the document head from a component: maps of `:tag`, `:props` and an
+optional `:key`. The server renders them into the head, or passes them to an `:on-head`
+function when the rendered HTML has no `</head>`, and the client keeps them in sync.
+
+```clojure
+(s/use-head {:tag :title :props {:children (str "Post: " (:title post))}})
+```
+
+`s/safe-error` marks an error whose message the server may show. `s/request-event`,
+`s/redirect`, `s/http-status` and `s/http-header` wrap Solid's request and response helpers,
+`s/client-only` loads a component on the client only, and `s/no-hydration` and `s/hydration`
+are Solid's components for regions that are not hydrated:
+
+```clojure
+($ s/no-hydration ($ static-footer))
+```
+
 ### Hydration
 
 `s/hydrate` makes server-rendered HTML interactive without rendering it again: the client adopts

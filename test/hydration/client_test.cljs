@@ -26,6 +26,12 @@
             (let [container (js/document.createElement "div")
                   _ (set! (.-innerHTML container) (.-html fixture))
                   _ (.appendChild js/document.body container)
+                  ;; Scripts set through innerHTML do not run, so run the serialized data
+                  _ (doseq [old (array-seq (.querySelectorAll container "script"))]
+                      (let [new (js/document.createElement "script")]
+                        (set! (.-textContent new) (.-textContent old))
+                        (.replaceWith old new)))
+                  server-async (q container "#async p")
                   server-button (q container "#counter button")
                   server-span (q container "#counter span")
                   server-li (q container "#todos li")
@@ -53,4 +59,6 @@
               (s/flush)
               (.. (expect (.-textContent (q container "#toggle p"))) (toBe "open"))
               (.. (expect (.-textContent (q container "article"))) (toBe "Cardbody"))
-              (.. (expect (.-length (.-children container))) (toBe 1))))))))
+              (.. (expect (.-textContent server-async)) (toBe "Moi, world"))
+              (.. (expect (identical? server-async (q container "#async p"))) (toBe true))
+              (.. (expect (.-textContent (q container "#async"))) (toBe "Moi, world"))))))))

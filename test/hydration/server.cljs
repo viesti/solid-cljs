@@ -6,6 +6,8 @@
             [solid.hydration-app :refer [app]]))
 
 (defn main [& _]
-  (fs/writeFileSync "out/hydration.json"
-                    (js/JSON.stringify #js {:html (s/render-to-string ($ app))
-                                            :script (s/hydration-script)})))
+  (-> (s/render-to-string-async ($ app))
+      (.then (fn [html]
+               (fs/writeFileSync "out/hydration.json"
+                                 (js/JSON.stringify #js {:html html
+                                                         :script (s/hydration-script)}))))))

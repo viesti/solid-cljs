@@ -78,6 +78,12 @@
   ([parent accessor marker current]
    (sw/insert parent accessor marker current)))
 
+(defn -child
+  "Returns the value of a dynamic child as Solid renders it: a keyword renders its name, as on
+  the server."
+  [x]
+  (if (keyword? x) (name x) x))
+
 (defn -scope
   "Marks the accessor `f` of a dynamic child as a hydration scope, as Solid's compiled JSX
   does on both the server and the client."
@@ -743,25 +749,86 @@
 
 (defn render-to-string
       "Renders `root`, an element created with `$` or a component, to an HTML string on the
-  server. Async reads that are still pending render their `s/loading` fallbacks."
+  server. Async reads that are still pending render their `s/loading` fallbacks.
+
+  Options are `:nonce`, `:render-id`, `:no-scripts`, and `:on-head`, a function that receives
+  the HTML of the head tags (see `use-head`) when the rendered HTML has no `</head>`."
       ([root] (render-to-string root nil))
-      ([root {:keys [nonce render-id]}]
-       (sw/renderToString (root-thunk root) (render-options {"nonce" nonce "renderId" render-id}))))
+      ([root {:keys [nonce render-id no-scripts on-head]}]
+       (sw/renderToString (root-thunk root) (render-options {"nonce" nonce "renderId" render-id
+                                                             "noScripts" no-scripts "onHead" on-head}))))
 
 (defn render-to-string-async
       "Returns a promise of the HTML of `root` once every async read has settled."
       ([root] (render-to-string-async root nil))
-      ([root {:keys [nonce render-id]}]
+      ([root {:keys [nonce render-id no-scripts on-head]}]
        (js/Promise.resolve
-         (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce "renderId" render-id})))))
+         (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce "renderId" render-id
+                                                               "noScripts" no-scripts "onHead" on-head})))))
 
 (defn render-to-stream
       ([root] (render-to-stream root nil))
-      ([root {:keys [nonce render-id on-complete-shell on-complete-all]}]
+      ([root {:keys [nonce render-id no-scripts on-head on-complete-shell on-complete-all]}]
        (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce
                                                              "renderId" render-id
+                                                             "noScripts" no-scripts
+                                                             "onHead" on-head
                                                              "onCompleteShell" on-complete-shell
                                                              "onCompleteAll" on-complete-all}))))
+
+;; Server and document utilities
+
+(def no-hydration
+      "Solid's `NoHydration` component: its children render on the server only and are not
+  hydrated."
+      solid/NoHydration)
+
+(def hydration
+      "Solid's `Hydration` component, which resumes hydration inside `no-hydration`."
+      solid/Hydration)
+
+(defn- head-tag [{:keys [tag props key]}]
+      (render-options {"tag" (name tag)
+                       "props" (clj->js props)
+                       "key" key}))
+
+(defn use-head
+      "Adds tags to the document head: a map of `:tag` (`:title`, `:meta`, `:link`, `:style`,
+  `:script` or `:base`), `:props` and an optional `:key`, a vector of them, or a function
+  returning either. The server renders them into the head, and the client keeps them in
+  sync."
+      [tags]
+      (let [->js (fn [t] (if (sequential? t) (into-array (map head-tag t)) (head-tag t)))]
+        (sw/useHead (if (fn? tags) #(->js (tags)) (->js tags)))))
+
+(defn client-only
+      "Returns a component that loads the module of `f` (a function returning a promise of a
+  module with a default export) and renders it on the client only."
+      [f]
+      (sw/clientOnly f))
+
+(defn safe-error
+      "Marks `error` as safe to show, so that Solid's server keeps its message instead of
+  replacing it with \"Internal Server Error\"."
+      [error]
+      (sw/markSafeError error))
+
+(defn request-event
+      "Returns the request event of the current server render, or nil."
+      []
+      (sw/getRequestEvent))
+
+(defn redirect
+      ([url] (sw/redirect url))
+      ([url init] (sw/redirect url (if (map? init) (clj->js init) init))))
+
+(defn http-status
+      ([code] (sw/httpStatus code))
+      ([code text] (sw/httpStatus code text)))
+
+(defn http-header
+      ([header-name value] (sw/httpHeader header-name value))
+      ([header-name value opts] (sw/httpHeader header-name value (clj->js opts))))
 
 (defn pipe [stream res]
       (.pipe ^js stream res))

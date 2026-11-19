@@ -74,3 +74,32 @@
          (html ($ :p {:& {:title "spread" :class [:a :b] :data-k "v" :on-click identity} :title "own"} "x"))))
   (is (= "<span class=\"warn\">own</span>"
          (html ($ badge {:& {:label "spread" :tone "warn"} :label "own"})))))
+
+(defui titled []
+  (s/use-head {:tag :title :props {:children "Demo"}})
+  ($ :p "body"))
+
+(deftest head-errors-and-boundaries
+  (let [head (atom nil)]
+    (is (= "<p>body</p>" (s/render-to-string titled {:on-head #(reset! head %)})))
+    ;; Without a </head> in the render, Solid sets the title from a script
+    (is (re-find #"\"Demo\"" (str @head))))
+  (is (= "<span>caught shown</span>"
+         (html (s/try ($ (fn [_] (throw (s/safe-error (js/Error. "shown")))))
+                      (catch e ($ :span "caught " (.-message e)))))))
+  (is (= "<p>static</p>" (html ($ s/no-hydration ($ :p "static")))))
+  (is (= "<p>kw</p>" (html ($ :p (keyword "kw"))))))
+
+(defui slow-view []
+  (let [v (s/memo #(js/Promise. (fn [resolve] (js/setTimeout (fn [] (resolve "late")) 10))))]
+    (s/loading ($ :p "wait") ($ :p (v)))))
+
+(deftest streaming
+  (async done
+    (let [chunks (atom [])
+          writable #js {:write (fn [chunk] (swap! chunks conj (str chunk)) true)
+                        :end (fn []
+                               (is (re-find #"<p>wait</p>" (first @chunks)) "the shell has the fallback")
+                               (is (re-find #"late" (apply str @chunks)) "a later chunk has the content")
+                               (done))}]
+      (s/pipe (s/render-to-stream slow-view) writable))))

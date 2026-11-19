@@ -214,3 +214,13 @@
           (.then (fn [] (fail)))
           (.then (fn [_] (throw (js/Error. "should have rejected")))
                  (fn [e] (.. (expect (.-message e)) (toBe "nope"))))))))
+
+(test
+  "A keyword child renders its name, as on the server"
+  (fn []
+    (let [k (s/signal :one)
+          c (mount ($ :p @k))]
+      (.. (expect (.-textContent c)) (toBe "one"))
+      (reset! k :two)
+      (s/flush)
+      (.. (expect (.-textContent c)) (toBe "two")))))
