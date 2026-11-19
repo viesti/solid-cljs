@@ -75,7 +75,15 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
 `onHydrationEnd`, `lazyModule`, event handler data tuples, `respond`, `reload`, cookie helpers,
 `configureServerErrors`.
 
-### 5. Tooling — todo
+### 5. Tooling — in progress
+
+- Component names and locations: done. `$` passes `"<ns>/<name>"` and `"<ns>:<line>:<col>"` to
+  `createComponent` behind `goog.DEBUG`, built with an explicit `{:tag 'boolean}` because
+  syntax-quote qualifies a `^boolean` hint. Test: test/vitest/devnames.cljs.
+- Found while checking release output: the benchmark bundle had grown to 290 kB because Closure
+  aliased the `solid-js` module object in `s/signal`, which stops Vite from tree-shaking it.
+  Runtime functions now bind computed arguments before calling Solid, the bundle is back to
+  178 kB, and dev/bench/run.mjs fails if a module object is used other than by property access.
 
 - Component names and locations in dev builds (`createComponent(Comp, props, name, loc)`).
 - Hot reload through `solid-js/refresh`, keeping component state.

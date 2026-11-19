@@ -1,6 +1,17 @@
 // Runs the release build of the benchmark page in headless Chromium and prints medians in ms
 import { chromium } from '@playwright/test';
 import { preview } from 'vite';
+import { readFileSync } from 'node:fs';
+
+// A module object that Closure assigns to a variable keeps Vite from tree-shaking the module
+const compiled = readFileSync('public/bench-js/bench.js', 'utf8');
+for (const [, ns] of compiled.matchAll(/import\*as (esm_import\$[\w$]+) from/g)) {
+  const uses = compiled.split(ns).length - 1;
+  const accesses = compiled.split(ns + '.').length - 1;
+  if (uses !== accesses + 1) {
+    throw new Error(`${ns} is used other than by property access, so its module cannot be tree-shaken`);
+  }
+}
 
 const server = await preview({ configFile: 'vite.bench.config.mjs', preview: { port: 4173 } });
 const browser = await chromium.launch();

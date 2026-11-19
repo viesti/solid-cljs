@@ -166,7 +166,11 @@
 
 (defn- reactive-options
       "Converts an options map of a signal, memo or effect to Solid's options object, with keys
-  named as props are (`:owned-write` is `ownedWrite`)."
+  named as props are (`:owned-write` is `ownedWrite`).
+
+  Callers bind the result before calling Solid. A call whose arguments need statements of
+  their own makes Closure read the function off the imported module first, which aliases the
+  module object and keeps the bundler from tree-shaking it."
       [opts]
       (let [o #js {}]
         (doseq [[k v] opts :when (some? v)]
@@ -186,7 +190,8 @@
       ([v]
        (signal v nil))
       ([v opts]
-       (let [[value set-value] (solid/createSignal v (reactive-options (merge {:equals =} opts)))]
+       (let [o (reactive-options (merge {:equals =} opts))
+             [value set-value] (solid/createSignal v o)]
          (signal-ref value set-value))))
 
 (defn optimistic
@@ -196,7 +201,8 @@
       ([v]
        (optimistic v nil))
       ([v opts]
-       (let [[value set-value] (solid/createOptimistic v (reactive-options opts))]
+       (let [o (reactive-options opts)
+             [value set-value] (solid/createOptimistic v o)]
          (signal-ref value set-value))))
 
 (declare ->js source-fn wrap-setter)
@@ -286,12 +292,12 @@
       ([compute apply]
        (solid/createEffect compute (with-cleanup apply)))
       ([compute apply {:keys [error] :as opts}]
-       (solid/createEffect compute
-                           (if error
-                             #js {:effect (with-cleanup apply)
-                                  :error (fn [err cleanup-fn] (error err cleanup-fn) js/undefined)}
-                             (with-cleanup apply))
-                           (reactive-options (dissoc opts :error)))))
+       (let [effect-fn (if error
+                         #js {:effect (with-cleanup apply)
+                              :error (fn [err cleanup-fn] (error err cleanup-fn) js/undefined)}
+                         (with-cleanup apply))
+             o (reactive-options (dissoc opts :error))]
+         (solid/createEffect compute effect-fn o))))
 
 (defn render-effect
       "Creates an effect that runs during rendering. Takes the same `compute` and
@@ -302,7 +308,9 @@
       ([compute apply]
        (solid/createRenderEffect compute (with-cleanup apply)))
       ([compute apply opts]
-       (solid/createRenderEffect compute (with-cleanup apply) (reactive-options opts))))
+       (let [effect-fn (with-cleanup apply)
+             o (reactive-options opts)]
+         (solid/createRenderEffect compute effect-fn o))))
 
 (defn on-settled
       "Runs `f` once the current reactive activity settles. `f` may return a
@@ -374,7 +382,8 @@
       ([f]
        (solid/createMemo f))
       ([f opts]
-       (solid/createMemo f (reactive-options opts))))
+       (let [o (reactive-options opts)]
+         (solid/createMemo f o))))
 
 (defn -resolve
       "Creates the element of `x` if `x` is an element created with `$`, so that the element
@@ -416,9 +425,12 @@
         o))
 
 (defn -component
-      "Returns an element that creates the component `comp` with `props`."
-      [comp props]
-      (-compiled (fn [] (-resolve (solid/createComponent comp props)))))
+      "Returns an element that creates the component `comp` with `props`, named
+  `component-name` at `loc` in Solid's diagnostics."
+      ([comp props]
+       (-compiled (fn [] (-resolve (solid/createComponent comp props)))))
+      ([comp props component-name loc]
+       (-compiled (fn [] (-resolve (solid/createComponent comp props component-name (or loc js/undefined)))))))
 
 (defn- flow
       "Creates the control-flow component `comp`, such as `Show`, with getters for the
@@ -859,7 +871,7 @@
 (defn create-owner
       "Creates a reactive owner, with an optional map of `:id` and `:transparent`."
       ([] (solid/createOwner))
-      ([opts] (solid/createOwner (reactive-options opts))))
+      ([opts] (let [o (reactive-options opts)] (solid/createOwner o))))
 
 (defn disposed?
       "Returns true if the reactive owner `owner` is disposed."

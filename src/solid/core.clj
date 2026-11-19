@@ -169,12 +169,30 @@
     (let [[attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])]
       `(create-element ~tag ~(props-form attrs nil) ~@(wrap-children children)))))
 
+(defn- component-debug-info
+  "Returns the name and source location of the component `tag` that a `$` form at `form`
+  creates, for Solid's diagnostics, or nil when `tag` is not a symbol."
+  [env form tag]
+  (core/when (symbol? tag)
+    (let [resolved (:name (cljs.analyzer/resolve-var (dissoc env :locals) tag (constantly nil)))
+          {:keys [line column]} (meta form)]
+      [(str (core/or resolved tag))
+       (core/when line (str (:name (:ns env)) ":" line ":" column))])))
+
 (defn- component-form
   "Returns the form that creates a component with `createComponent`, as Solid's compiled
-  JSX does."
-  [tag args]
-  (let [[attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])]
-    `(solid.core/-component ~tag ~(props-form attrs children))))
+  JSX does. In development builds the call also names the component and its source location
+  for Solid's diagnostics; release builds leave them out."
+  ([tag args] (component-form nil nil tag args))
+  ([env form tag args]
+   (let [[attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])
+         [component-name loc] (core/when env (component-debug-info env form tag))]
+     (if component-name
+       ;; Syntax-quote would qualify a ^boolean hint, which Closure then cannot fold
+       `(if ~(with-meta 'goog/DEBUG {:tag 'boolean})
+          (solid.core/-component ~tag ~(props-form attrs children) ~component-name ~loc)
+          (solid.core/-component ~tag ~(props-form attrs children)))
+       `(solid.core/-component ~tag ~(props-form attrs children))))))
 
 (defmacro $
   "Creates an element or a component. Elements with keyword tags compile to templates
@@ -184,7 +202,7 @@
     (= tag :<>) `(cljs.core/array ~@(wrap-children args))
     (tpl/compilable? tag args) (tpl/compile-element &env tag args)
     (keyword? tag) (h-form &env tag args)
-    :else (component-form tag args)))
+    :else (component-form &env &form tag args)))
 
 (defmacro $h
   "Creates an element or a component like `$`, through Solid's runtime hyperscript
