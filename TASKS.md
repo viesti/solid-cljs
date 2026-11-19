@@ -45,7 +45,16 @@ the signal has `:owned-write`, since it cannot see the option; `{:solid/lint fal
 - `s/effect`: the `{effect, error}` form, as an `:error` option.
 - `s/create-context` with no argument (default-less, throws without a provider).
 
-### 3. Server functions — todo
+### 3. Server functions — done
+
+`defserverfn` in src/solid/server_functions.clj; runtime in src/solid/server_functions.cljs
+(loads in both builds) and src/solid/server_functions/server.cljs (handler, server only: it
+uses `@solidjs/web/storage`, which imports `node:async_hooks`). Ids are `"<ns>/<name>"`.
+Arguments and results travel as EDN unless `{:encoding :js}`. The macro refuses the `:both`
+render target. Test: test/solid/server_functions_test.cljs, run by the server test runner,
+which routes the browser runtime's global fetch to the handler in the same process. Checked by
+hand that a `:dom` build contains only the reference; the dev build's source map still holds
+the source, which the README warns about.
 
 A macro (working name `s/defserverfn`) that registers the function with
 `registerServerReference` on the server and emits `createServerReference` with the same id on

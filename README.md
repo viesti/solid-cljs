@@ -659,6 +659,46 @@ are Solid's components for regions that are not hydrated:
 ($ s/no-hydration ($ static-footer))
 ```
 
+### Server functions
+
+`defserverfn` defines a function that runs on the server and that browser code calls over
+HTTP, like a `"use server"` function in JavaScript. Server code calls it directly. It runs on
+Solid's server-functions runtime, and returns a promise in the browser:
+
+```clojure
+(ns app.users
+  (:require [solid.server-functions :refer [defserverfn]]))
+
+(defserverfn rename-user [id new-name]
+  (db/rename! id new-name)
+  {:id id :name new-name})
+```
+
+The server answers calls with `solid.server-functions.server/handle-request`, for requests to
+`/_server` (the default path), and server functions see the request through `s/request-event`:
+
+```clojure
+(ns app.server
+  (:require [solid.server-functions.server :as sfs]))
+
+(defn handler [^js request]
+  (if (.startsWith (.-pathname (js/URL. (.-url request))) "/_server")
+    (sfs/handle-request request)
+    (render-page request)))
+```
+
+Arguments and results travel as EDN, so maps, keywords and sets arrive as they were sent.
+`{:encoding :js}` hands them to Solid's serializer as they are instead, for files and streams,
+and `{:method :get}` marks a function that only reads, so that its calls can be cached.
+`solid.server-functions/configure-client` and `solid.server-functions.server/configure-server`
+pass options to Solid's runtime, such as `:base` for another path.
+
+The browser build must not contain the function bodies, so builds that use `defserverfn` set
+`:solid/render` to `:dom` for the browser and `:server` for the server, and the compiler
+refuses `defserverfn` otherwise. Clojurific compiles each namespace once for both, so it
+cannot use server functions yet. A browser source map with embedded sources still contains the
+original code, so do not publish such source maps for these namespaces.
+
 ### Hydration
 
 `s/hydrate` makes server-rendered HTML interactive without rendering it again: the client adopts
