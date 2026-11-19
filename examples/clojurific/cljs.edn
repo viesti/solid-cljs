@@ -1,0 +1,2 @@
+;; Compiler options; the dev profile applies while the Vite dev server runs
+{:profiles {:dev {:solid/refresh true}}}

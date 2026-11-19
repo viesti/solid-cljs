@@ -77,9 +77,6 @@
           ($ todos)
           ($ greeting)))
 
-;; Rendering from a top-level form re-renders on every hot reload, with shadow-cljs and
-;; Clojurific alike, since both evaluate a reloaded namespace again
-(defonce dispose (atom nil))
-
-(when-let [f @dispose] (f))
-(reset! dispose (s/render ($ app) (js/document.getElementById "root")))
+;; Renders once. Development builds set :solid/refresh, so a hot reload re-renders only the
+;; components whose code changed and keeps the state of the others.
+(defonce dispose (s/render ($ app) (js/document.getElementById "root")))

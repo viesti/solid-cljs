@@ -83,7 +83,9 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
   the proxy needs to follow updates, and a signature hashed from their source as written, with
   the numbers of generated names removed, so unchanged components keep their state. Test:
   test/vitest/refresh.cljs; checked by hand in the playground with shadow-cljs watch, where an
-  edit to the toolbar kept a todo added before it. Not tried with Clojurific's reload.
+  edit to the toolbar kept a todo added before it. Both examples now enable it in dev builds
+  (Clojurific through a cljs.edn `:dev` profile) and render once; checked by hand in both that
+  editing the counter keeps a todo added before the reload.
 
 - Component names and locations: done. `$` passes `"<ns>/<name>"` and `"<ns>:<line>:<col>"` to
   `createComponent` behind `goog.DEBUG`, built with an explicit `{:tag 'boolean}` because
@@ -104,6 +106,11 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
 - Hot reload through `solid-js/refresh`, keeping component state.
 - Custom elements through templates: test properties and attributes.
 - `solid.squint`: store, action and server-rendering helpers.
+
+### 6. Deferred Solid features — in progress
+
+Server components (`@solidjs/web/frames`), `storage`, performance tracks, trusted types and the
+asset functions. Findings and decisions per item go here.
 
 ### Status
 

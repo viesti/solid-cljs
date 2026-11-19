@@ -111,18 +111,13 @@ export default defineConfig({
 
 Install it with `npm i -D clojurific vite@8`. `npx vite` serves the page with hot reloading and
 `npx vite build` bundles it. Clojurific is experimental (version 0.12.15 was tested here).
-In that version a `^:dev/after-load` hook does not run after hot updates, so re-render from a
-top-level form instead:
+In that version a `^:dev/after-load` hook does not run after hot updates. Use `:solid/refresh`
+instead (see Hot reloading), set in a `cljs.edn` profile for the dev server:
 
 ```clojure
-(defonce dispose (atom nil))
-
-(when-let [f @dispose] (f))
-(reset! dispose (s/render ($ app) (js/document.getElementById "root")))
+;; cljs.edn, with config: 'cljs.edn' in the plugin's options
+{:profiles {:dev {:solid/refresh true}}}
 ```
-
-This form also works with shadow-cljs, which evaluates a namespace's top-level forms again on
-each reload.
 
 ### Upgrading from Solid 1
 

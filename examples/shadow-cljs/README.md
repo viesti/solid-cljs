@@ -26,6 +26,9 @@ and `yarn preview` serves it.
   imports to Vite. shadow-cljs cannot bundle `@solidjs/web` itself.
 - **vite.config.mjs** serves `public/` and does not watch shadow-cljs' output, so that shadow-cljs
   hot reloads changes instead of Vite reloading the page.
+- **shadow-cljs.edn** sets `:solid/refresh` in development builds, so a hot reload re-renders
+  only the components whose code changed and keeps the state of the others. The demo renders
+  once, under `defonce`.
 
 `yarn dev:local` builds against the solid-cljs checkout this folder lives in instead of the pinned
 commit, through the `:local` alias in deps.edn.
