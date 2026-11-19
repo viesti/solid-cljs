@@ -1,0 +1,7 @@
+{:paths ["src"]
+ :deps {com.github.roman01la/solid-cljs {:git/url "https://github.com/viesti/solid-cljs"
+                                         :git/sha "32cbc62683b0862832e8d1bedcfbeb599ccc94b1"}
+        thheller/shadow-cljs {:mvn/version "3.5.14"}}
+ :aliases
+ {;; Uses the solid-cljs checkout this folder lives in
+  :local {:override-deps {com.github.roman01la/solid-cljs {:local/root "../.."}}}}}

@@ -29,8 +29,22 @@ The solid-cljs macros ensure that reactive expressions remain wrapped in functio
 
 ## Installation
 
-1. `npm i solid-js @solidjs/web @solidjs/h`
-2. `{:deps {com.github.roman01la/solid-cljs {:mvn/version "0.1.1"}}}`
+The Solid 2 port is not released to Clojars yet. Depend on it with a git dependency in deps.edn:
+
+```clojure
+{:deps {com.github.roman01la/solid-cljs
+        {:git/url "https://github.com/viesti/solid-cljs"
+         :git/sha "32cbc62683b0862832e8d1bedcfbeb599ccc94b1"}}}
+```
+
+Then install the npm packages it requires:
+
+```bash
+npm i solid-js @solidjs/web @solidjs/h
+```
+
+shadow-cljs reads deps.edn when shadow-cljs.edn sets `:deps true`. The
+[`examples/demo`](examples/demo) folder is a complete app set up this way.
 
 ### Bundling
 
@@ -74,7 +88,9 @@ dependencies from deps.edn instead of shadow-cljs.edn:
 ```clojure
 ;; deps.edn
 {:paths ["src"]
- :deps {com.github.roman01la/solid-cljs {:mvn/version "0.1.1"}}}
+ :deps {com.github.roman01la/solid-cljs
+        {:git/url "https://github.com/viesti/solid-cljs"
+         :git/sha "32cbc62683b0862832e8d1bedcfbeb599ccc94b1"}}}
 ```
 
 ```js
