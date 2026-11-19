@@ -1,0 +1,26 @@
+{:lint-as {solid.core/defui clojure.core/defn
+           solid.core/if-let clojure.core/if-let
+           solid.core/when-let clojure.core/when-let
+           solid.core/if-some clojure.core/if-some
+           solid.core/when-some clojure.core/when-some
+           solid.core/when clojure.core/when
+           solid.core/or clojure.core/or
+           solid.core/cond clojure.core/cond
+           solid.core/case clojure.core/case
+           solid.core/some-> clojure.core/some->
+           solid.core/some->> clojure.core/some->>
+           solid.core/batch clojure.core/delay
+           solid.core/children clojure.core/delay
+           solid.core/dynamic clojure.core/delay
+           solid.core/lazy clojure.core/delay
+           solid.core/reaction clojure.core/delay
+           solid.core/pending? clojure.core/delay
+           solid.core/latest clojure.core/delay
+           solid.core/resolve clojure.core/delay}
+ :hooks {:analyze-call {solid.core/if solid.kondo/if-form
+                        solid.core/for solid.kondo/loop-form
+                        solid.core/index solid.kondo/loop-form
+                        solid.core/repeat solid.kondo/loop-form
+                        solid.core/try solid.kondo/try-form
+                        solid.core/action solid.kondo/action-form}}
+ :linters {:unresolved-symbol {:exclude [(solid.core/yield)]}}}

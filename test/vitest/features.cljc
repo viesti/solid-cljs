@@ -224,3 +224,17 @@
       (reset! k :two)
       (s/flush)
       (.. (expect (.-textContent c)) (toBe "two")))))
+
+(defui lazy-target [{:keys [label]}]
+  ($ :b label))
+
+(test
+  "lazy accepts a promise of a component or of a module"
+  (fn []
+    (let [from-fn (s/lazy (js/Promise.resolve lazy-target))
+          from-module (s/lazy (js/Promise.resolve #js {:default lazy-target}))
+          c (mount ($ :div (s/loading ($ :i "loading")
+                             ($ from-fn {:label "a"})
+                             ($ from-module {:label "b"}))))]
+      (-> (wait 20)
+          (.then (fn [] (.. (expect (.-textContent c)) (toBe "ab"))))))))

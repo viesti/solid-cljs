@@ -1,0 +1,47 @@
+# Changelog
+
+## Unreleased: Solid 2
+
+solid-cljs now targets Solid 2.0. See "Upgrading from Solid 1" in the README for the changes an
+app needs.
+
+### Changed
+
+- Depends on `solid-js`, `@solidjs/web` and `@solidjs/h` 2.x. npm packages must be bundled by a
+  JavaScript bundler such as Vite, since shadow-cljs cannot bundle `@solidjs/web`.
+- Signal writes are queued until Solid flushes. `s/flush` applies them at once.
+- `s/effect` takes a compute and an apply function. Effect callbacks may return any value.
+- Elements compile to templates and components to `createComponent` calls, as Solid's JSX
+  compiler does. Element creation is about six times faster than with hyperscript.
+- Component props are a JavaScript object with camelCase names, so JavaScript components
+  receive the props they expect. `defui` keeps keyword lookups and destructuring, and
+  destructured props stay reactive.
+- Attribute names other than events are passed to the DOM as written (`:tabindex`,
+  `:stroke-width`), and numeric styles get `px` by CSS property.
+- Directives always receive an accessor.
+
+### Added
+
+- Server rendering with `s/render-to-string`, `s/render-to-string-async` and
+  `s/render-to-stream`, and hydration with `s/hydrate`, `s/hydration-script` and the compiler
+  options `:solid/render` and `:solid/hydratable`.
+- Async: `s/loading` options, `s/pending?`, `s/latest`, `s/refresh`, `s/affects`, `s/resolve`.
+- Actions and optimistic updates: `s/action` with `s/yield`, `s/optimistic`,
+  `s/optimistic-store`.
+- Stores: maps as initial data, `s/sget`, `s/sset!`, `s/supdate!`, `s/replacement`,
+  `s/projection`, `s/reconcile!`, `s/snapshot`, `s/store->clj`, `s/deep`.
+- Control flow: `:fallback` and `:key` for `s/for`, `s/repeat`, `s/reveal`.
+- Props: spreading with `:&`, `s/merge-props`, `s/omit-props`.
+- `:ref` vectors, `s/on-settled`, `s/on-flush`, `s/root`, `s/get-owner`, `s/run-with-owner`,
+  `s/from`, `s/map-array`, `s/use-head`, `s/safe-error`, `s/client-only`, `s/no-hydration`,
+  `s/hydration` and the request helpers.
+- `s/lazy` accepts a promise of a component, as from `shadow.lazy/load`.
+- `solid.squint`, helpers for Squint apps that use Solid's own JSX compiler.
+- A clj-kondo configuration, and compiler warnings for writes in component bodies and for
+  destructured props that are read once.
+- Example projects for shadow-cljs, Clojurific and Squint, and `yarn bench`.
+
+### Removed
+
+- `s/computed` and `s/resource`, as in Solid 2. An async `s/memo` under `s/loading` replaces
+  resources.

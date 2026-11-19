@@ -667,6 +667,36 @@ Hydratable client code also renders normally with `s/render`, so a build can com
 both. Without `:solid/hydratable`, `s/render` appends to a container that is not empty, so clear
 the server HTML from it before rendering.
 
+## Code splitting
+
+`s/lazy` creates a component from a promise of its code, which renders under `s/loading` while
+it loads. The promise may resolve to a module with a default export, as from a dynamic import,
+or to a component, as from shadow-cljs's `shadow.lazy/load`:
+
+```clojure
+(ns app.routes
+  (:require [shadow.lazy :as lazy]
+            [solid.core :as s :refer [$]]))
+
+(def editor (s/lazy (lazy/load (lazy/loadable app.editor/view))))
+
+(s/loading ($ spinner) ($ editor {:doc doc}))
+```
+
+## Editor support
+
+solid-cljs exports a [clj-kondo](https://github.com/clj-kondo/clj-kondo) configuration that
+teaches clj-kondo the bindings of `defui`, `s/for`, `s/try`, `s/action` and the other macros.
+Import it into a project once, after adding solid-cljs to its dependencies:
+
+```bash
+clj-kondo --copy-configs --dependencies --lint "$(clojure -Spath)"
+```
+
+The compiler also warns about reactivity mistakes in `defui` bodies: reactive reads outside a
+tracked scope, writes to signals while the body runs, and destructured props whose names the
+body binds again.
+
 ## Playground
 
 _source in [`dev/app/core.cljs`](src/app/core.cljs)_

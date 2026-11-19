@@ -1,7 +1,8 @@
 target
 .cpcache
 .idea
-.clj-kondo
+.clj-kondo/*
+!.clj-kondo/config.edn
 .lsp
 node_modules
 .shadow-cljs

@@ -24,7 +24,8 @@
    ::untracked-event-handler true
    ::async-in-tracked-scope true
    ::signal-not-derefed true
-   ::props-destructured-early true})
+   ::props-destructured-early true
+   ::write-in-component true})
 
 ;; -----------------------------------------------------------------------------
 ;; Error Message Definitions
@@ -53,6 +54,13 @@
   (str "Signal `" (pr-str form) "` used without dereferencing.\n"
        "Signals must be dereferenced with @ to read their value.\n"
        "Did you mean `@" (pr-str form) "`?"))
+
+(defmethod ana/error-message ::write-in-component [_ {:keys [form component-name]}]
+  (str "Write `" (pr-str form) "` in the body of component '" component-name "'.\n"
+       "Solid 2 does not allow writes while a component body or computation runs, and its "
+       "development build throws.\n"
+       "Write from an event handler, an effect's apply function or s/on-settled instead, or "
+       "seed the signal with the value."))
 
 (defmethod ana/error-message ::props-destructured-early [_ {:keys [prop-name component-name]}]
   (str "Prop `" prop-name "` of component '" component-name "' is read once and will not update.\n"
@@ -279,6 +287,29 @@
 ;; Public API for Macros
 ;; -----------------------------------------------------------------------------
 
+(def write-heads
+  "Symbols of calls that write reactive state."
+  #{'reset! 'swap! 'cljs.core/reset! 'cljs.core/swap! 'clojure.core/reset! 'clojure.core/swap!
+    's/sset! 's/supdate! 'solid.core/sset! 'solid.core/supdate!})
+
+(defn collect-writes
+  "Walks form and collects the writes to reactive state that run when it does, outside
+  functions and the callbacks of lifecycle hooks."
+  [form]
+  (let [writes (atom [])]
+    (letfn [(walk-form [f]
+              (cond
+                (fn-form? f) nil
+                (untracked-allowed? f) nil
+                (and (seq? f) (contains? write-heads (first f)))
+                (do (swap! writes conj f)
+                    (run! walk-form (rest f)))
+                (or (seq? f) (vector? f)) (run! walk-form f)
+                (map? f) (run! walk-form (vals f))
+                :else nil))]
+      (walk-form form))
+    @writes))
+
 (defn lint-component-body!
   "Lints a component body for reactivity issues.
   Call from defui macro."
@@ -290,7 +321,9 @@
         (let [untracked-derefs (collect-derefs form)]
           (doseq [deref-form untracked-derefs]
             (add-error! ::untracked-reactive deref-form
-                        {:component-name component-name}))))
+                        {:component-name component-name})))
+        (doseq [write (collect-writes form)]
+          (add-error! ::write-in-component write {:component-name component-name})))
       (report-errors! env))))
 
 (defn lint-effect-body!

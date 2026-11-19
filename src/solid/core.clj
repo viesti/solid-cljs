@@ -484,7 +484,13 @@
           (lint/lint-effect-body! 'reaction body &env)
           `(-reaction (fn [] ~@body)))
 
-(defmacro lazy [& body]
+(defmacro lazy
+          "Creates a component that loads with `body`, a promise of a module with a default export
+  or of a component. It renders under `s/loading` while it loads.
+  ```clojure
+  (def editor (s/lazy (shadow.lazy/load (shadow.lazy/loadable app.editor/view))))
+  ```"
+          [& body]
           `(-lazy (fn [] ~@body)))
 
 (defmacro pending?

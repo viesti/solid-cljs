@@ -556,8 +556,12 @@
             (cond-> {"fallback" fallback "children" #(into-array children)} on (assoc "on" on))
             {}))
 
-(defn -lazy [f]
-      (solid/lazy f))
+(defn -lazy
+      "Wraps Solid's `lazy`, accepting a promise of a module with a default export, as from a
+  dynamic import, or of a component, as from `shadow.lazy/load`."
+      [f]
+      (solid/lazy (fn []
+                    (.then (f) (fn [m] (if (fn? m) #js {:default m} m))))))
 
 (defn -reaction [f]
       (solid/createReaction (with-cleanup f)))
