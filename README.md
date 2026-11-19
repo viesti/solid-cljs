@@ -32,10 +32,70 @@ The solid-cljs macros ensure that reactive expressions remain wrapped in functio
 1. `npm i solid-js @solidjs/web @solidjs/h`
 2. `{:deps {com.github.roman01la/solid-cljs {:mvn/version "0.1.1"}}}`
 
-shadow-cljs cannot bundle `@solidjs/web` itself, because the Closure Compiler rejects the
-dynamic `import()` in its hydration code. Let a JavaScript bundler resolve npm packages
-instead: build with `:target :esm` and `:js-options {:js-provider :import}`, then serve or
-bundle the output with Vite (see shadow-cljs.edn and the `example` script in package.json).
+### Bundling
+
+Solid 2's npm packages have to be bundled by a JavaScript bundler. shadow-cljs cannot bundle
+`@solidjs/web` itself, because the Closure Compiler rejects the dynamic `import()` in its
+hydration code.
+
+#### shadow-cljs with Vite
+
+shadow-cljs compiles the ClojureScript to ES modules and leaves npm imports to Vite:
+
+```clojure
+;; shadow-cljs.edn
+{:builds {:app {:target :esm
+                :output-dir "public/js"
+                :js-options {:js-provider :import}
+                :modules {:main {:entries [app.core]}}}}}
+```
+
+Load `/js/main.js` with `<script type="module">`, and run `shadow-cljs watch app` beside
+`vite public`. The `example` script in package.json does both.
+
+#### Clojurific
+
+[Clojurific](https://github.com/WhimsicalCode/clojurific) is a ClojureScript compiler fork
+that runs as a Vite 8 plugin. It compiles each namespace to an ES module and lets Vite resolve
+and bundle npm packages, so Solid 2 needs no extra configuration. It reads source paths and
+dependencies from deps.edn instead of shadow-cljs.edn:
+
+```clojure
+;; deps.edn
+{:paths ["src"]
+ :deps {com.github.roman01la/solid-cljs {:mvn/version "0.1.1"}}}
+```
+
+```js
+// vite.config.mjs
+import { defineConfig } from 'vite';
+import cljf from 'clojurific/vite';
+
+export default defineConfig({
+  plugins: [cljf({ outputDir: 'target/cljs' })],
+});
+```
+
+```html
+<!-- index.html -->
+<div id="root"></div>
+<script type="module" src="/src/app/core.cljs"></script>
+```
+
+Install it with `npm i -D clojurific vite@8`. `npx vite` serves the page with hot reloading and
+`npx vite build` bundles it. Clojurific is experimental (version 0.12.15 was tested here).
+In that version a `^:dev/after-load` hook does not run after hot updates, so re-render from a
+top-level form instead:
+
+```clojure
+(defonce dispose (atom nil))
+
+(when-let [f @dispose] (f))
+(reset! dispose (s/render ($ app) (js/document.getElementById "root")))
+```
+
+This form also works with shadow-cljs, which evaluates a namespace's top-level forms again on
+each reload.
 
 ### Upgrading from Solid 1
 
