@@ -1,4 +1,5 @@
 {:lint-as {solid.core/defui clojure.core/defn
+           solid.server-functions/defserverfn clojure.core/defn
            solid.core/if-let clojure.core/if-let
            solid.core/when-let clojure.core/when-let
            solid.core/if-some clojure.core/if-some

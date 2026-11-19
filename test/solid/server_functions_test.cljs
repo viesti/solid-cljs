@@ -13,6 +13,9 @@
 (defserverfn read-count {:method :get} []
   (js/Promise.resolve 42))
 
+(defserverfn request-path []
+  (.-pathname (js/URL. (.-url (.-request (s/request-event))))))
+
 (defserverfn fail-safely [reason]
   (throw (s/safe-error (js/Error. (str "refused: " reason)))))
 
@@ -53,6 +56,8 @@
                 (fn [r] (is (= {:user :ann :points 15 :tags #{:new}} r) "ClojureScript data round-trips")))
           (.then #(step (fn [] (count-ref))
                         (fn [r] (is (= 42 r) "a :get function answers over the transport"))))
+          (.then #(step (fn [] ((browser-reference "solid.server-functions-test/request-path")))
+                        (fn [r] (is (re-find #"^/_server" r) "the request event is in scope"))))
           (.then #(-> (fail :quota)
                       (.then (fn [_] (is false "should have rejected"))
                              (fn [e] (is (= "refused: :quota" (.-message e)) "safe errors keep their message")))))
