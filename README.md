@@ -488,6 +488,22 @@ Create atom-like signal via [createSignal](https://docs.solidjs.com/reference/ba
   ...)
 ```
 
+Signals and memos take an options map. `:equals` compares values (`=` by default for signals),
+`:owned-write` allows writes while a component body or computation runs, which Solid 2 rejects
+otherwise, `:unobserved` is called when nothing reads the value any more, `:lazy` makes a memo
+compute on first read, and `:name` labels it in diagnostics. Effects take `:defer`, and
+`:error`, a function that handles errors from the compute function, including rejected async
+values:
+
+```clojure
+(s/signal 0 {:owned-write true})
+(s/memo expensive {:lazy true})
+(s/effect #(fetch-user @id) #(show-user %) {:error (fn [err _] (show-error err))})
+```
+
+`s/create-context` without a default value makes `s/use-context` throw when no provider is
+above it, which is Solid 2's recommended form for state that a subtree owns.
+
 Access DOM element via [ref](https://docs.solidjs.com/reference/jsx-attributes/ref)
 
 ```clojure

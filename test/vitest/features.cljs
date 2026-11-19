@@ -275,3 +275,46 @@
                    (failing)))
           (.then (fn [_] (throw (js/Error. "should have rejected")))
                  (fn [e] (.. (expect (.-message e)) (toBe "fail before"))))))))
+
+(test
+  "Signal, memo and effect options"
+  (fn []
+    (let [unobserved (atom 0)
+          computed (atom 0)
+          errors (atom [])
+          shown (s/signal true)
+          watched (s/signal 1 {:unobserved #(swap! unobserved inc)})
+          lazy-memo (s/root (fn [_] (s/memo #(do (swap! computed inc) 42) {:lazy true})))
+          c (mount ($ :div
+                      ($ (fn [_]
+                           (let [counter (s/signal 0 {:owned-write true})]
+                             (reset! counter 1)
+                             ($ :p#owned @counter))))
+                      (s/if @shown ($ :p#watched @watched) "hidden")))]
+      (s/root (fn [_]
+                (s/effect (fn [] (js/Promise.reject (js/Error. "async failure")))
+                          (fn [_] nil)
+                          {:error (fn [e _] (swap! errors conj (.-message e)))})))
+      (.. (expect (.-textContent (q c "#owned"))) (toBe "1"))
+      (.. (expect @computed) (toBe 0))
+      (.. (expect (lazy-memo)) (toBe 42))
+      (.. (expect @computed) (toBe 1))
+      (reset! shown false)
+      (s/flush)
+      (-> (wait 20)
+          (.then (fn []
+                   (.. (expect @unobserved) (toBe 1))
+                   (.. (expect (clj->js @errors)) (toEqual #js ["async failure"]))))))))
+
+(def required-ctx (s/create-context))
+
+(defui needs-ctx []
+  ($ :b (s/use-context required-ctx)))
+
+(test
+  "A context without a default works under a provider and throws without one"
+  (fn []
+    (let [c (mount ($ :div
+                      ($ required-ctx {:value "given"} ($ needs-ctx))
+                      (s/try ($ needs-ctx) (catch _ ($ :i "missing")))))]
+      (.. (expect (.-textContent c)) (toBe "givenmissing")))))

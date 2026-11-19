@@ -34,7 +34,12 @@ dynamic `href`/`action` is set, with the owner when it is dynamic) and `ssrLinkC
 the server. Router 2.0 uses the claims for `aria-current`/`data-active` and form interception.
 Emit the same from templates, then test with `@solidjs/router` 2.0 (devDependency).
 
-### 2. Signal, memo and effect options; contexts without a default — todo
+### 2. Signal, memo and effect options; contexts without a default — done
+
+Options maps convert keys like props (`reactive-options` in src/solid/core.cljs). Effects take
+`:error`, which builds Solid's `{effect, error}` bundle. Test: "Signal, memo and effect options"
+in test/vitest/features.cljs. The linter still warns about writes in a `defui` body even when
+the signal has `:owned-write`, since it cannot see the option; `{:solid/lint false}` silences it.
 
 - `s/signal` and `s/memo`: `:owned-write`, `:unobserved`, `:lazy`, `:name`.
 - `s/effect`: the `{effect, error}` form, as an `:error` option.

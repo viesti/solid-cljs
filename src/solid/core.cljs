@@ -163,16 +163,29 @@
         (-swap! [_ f a b xs]
           (set-value (fn [old] (apply f old a b xs))))))
 
+(defn- reactive-options
+      "Converts an options map of a signal, memo or effect to Solid's options object, with keys
+  named as props are (`:owned-write` is `ownedWrite`)."
+      [opts]
+      (let [o #js {}]
+        (doseq [[k v] opts :when (some? v)]
+          (aset o (props/prop-name k) v))
+        o))
+
 (defn signal
       "Creates an atom-like signal. Reads with `deref` are tracked.
 
   Writes with `reset!` and `swap!` are queued: `deref` keeps returning the
   previous value until Solid flushes its queue on the next microtask, or until
-  `flush` is called. Consecutive `swap!` calls compose on the queued value."
+  `flush` is called. Consecutive `swap!` calls compose on the queued value.
+
+  Options are `:equals` (a function, or false to notify on every write; `=` by default),
+  `:owned-write` (allow writes while a component body or computation runs), `:unobserved` (a
+  function to call when nothing reads the signal any more) and `:name` (for diagnostics)."
       ([v]
-       (signal v =))
-      ([v {:keys [equals]}]
-       (let [[value set-value] (solid/createSignal v #js {:equals equals})]
+       (signal v nil))
+      ([v opts]
+       (let [[value set-value] (solid/createSignal v (reactive-options (merge {:equals =} opts)))]
          (signal-ref value set-value))))
 
 (defn optimistic
@@ -181,8 +194,8 @@
   before it ends. With a function, the signal derives its value from the function."
       ([v]
        (optimistic v nil))
-      ([v {:keys [equals]}]
-       (let [[value set-value] (solid/createOptimistic v (when equals #js {:equals equals}))]
+      ([v opts]
+       (let [[value set-value] (solid/createOptimistic v (reactive-options opts))]
          (signal-ref value set-value))))
 
 (declare ->js source-fn wrap-setter)
@@ -262,13 +275,22 @@
 
   With a single function, the function both tracks and performs side effects.
   This form uses Solid's deprecated `createTrackedEffect` and may run more than
-  once per change."
+  once per change.
+
+  Options are `:defer` (skip the initial run), `:error` (a function of the error and a
+  cleanup function, called when `compute` throws or an async value rejects, instead of the
+  nearest `s/try`), `:schedule`, `:sync` and `:name`."
       ([f]
        (solid/createTrackedEffect #(cleanup (f))))
       ([compute apply]
        (solid/createEffect compute (with-cleanup apply)))
-      ([compute apply {:keys [defer]}]
-       (solid/createEffect compute (with-cleanup apply) #js {:defer defer})))
+      ([compute apply {:keys [error] :as opts}]
+       (solid/createEffect compute
+                           (if error
+                             #js {:effect (with-cleanup apply)
+                                  :error (fn [err cleanup-fn] (error err cleanup-fn) js/undefined)}
+                             (with-cleanup apply))
+                           (reactive-options (dissoc opts :error)))))
 
 (defn render-effect
       "Creates an effect that runs during rendering. Takes the same `compute` and
@@ -278,8 +300,8 @@
        (solid/createRenderEffect f (fn [_])))
       ([compute apply]
        (solid/createRenderEffect compute (with-cleanup apply)))
-      ([compute apply {:keys [defer]}]
-       (solid/createRenderEffect compute (with-cleanup apply) #js {:defer defer})))
+      ([compute apply opts]
+       (solid/createRenderEffect compute (with-cleanup apply) (reactive-options opts))))
 
 (defn on-settled
       "Runs `f` once the current reactive activity settles. `f` may return a
@@ -344,10 +366,14 @@
       (solid/onCleanup f))
 
 (defn memo
+      "Creates a derived value from `f`, cached until what `f` reads changes, and returns a
+  function that reads it. `f` may return a promise or an async iterable, which `s/loading`
+  waits for. Options are `:equals`, `:lazy` (compute on first read, and dispose when
+  unobserved), `:unobserved` and `:name`."
       ([f]
        (solid/createMemo f))
-      ([f {:keys [equals]}]
-       (solid/createMemo f #js {:equals equals})))
+      ([f opts]
+       (solid/createMemo f (reactive-options opts))))
 
 (defn -resolve
       "Creates the element of `x` if `x` is an element created with `$`, so that the element
@@ -735,8 +761,12 @@
 (defn untrack [f]
       (solid/untrack f))
 
-(defn create-context [value]
-      (solid/createContext value))
+(defn create-context
+      "Creates a context, which is also its provider component: `($ ctx {:value v} ...)`.
+  Without a default value, `use-context` throws when no provider is above it. Use a default
+  only for values with a natural fallback, such as a theme."
+      ([] (solid/createContext))
+      ([default-value] (solid/createContext default-value)))
 
 (defn use-context [context]
       (solid/useContext context))
