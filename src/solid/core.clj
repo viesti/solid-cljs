@@ -3,6 +3,7 @@
     (:require [clojure.core :as core]
               [solid.compiler :as sc]
               [solid.lint :as lint]
+              [solid.props :as props]
               [solid.template :as tpl]))
 
 (defn- literal?
@@ -59,26 +60,28 @@
                  (core/or (= head 'fn)
                           (= head 'fn*)))))
 
-(defn- wrap-component-props
-       "Wraps component prop values in reactive-prop for fine-grained reactivity.
-  Does not wrap:
-  - Literals (strings, numbers, keywords, nil, booleans)
-  - Function forms (fn, fn*/#())"
-       [props]
-       (if (map? props)
-           (reduce-kv
-            (fn [m k v]
-                (assoc m k
-                       (core/cond
-                 ;; Literals don't need wrapping
-                        (sc/literal? v) v
-                 ;; Function forms are callbacks, don't wrap
-                        (fn-form? v) v
-                 ;; Everything else gets wrapped in reactive-prop
-                        :else `(solid.core/reactive-prop (fn [] ~v)))))
-            {}
-            props)
-           props))
+(defn- static-prop?
+       "Returns true if a prop value is passed as is: a literal or a function form."
+       [v]
+       (core/or (sc/literal? v) (fn-form? v)))
+
+(defn- props-form
+       "Returns the form that creates a component's props object. Keys are converted with
+  `solid.props/prop-name`, and values other than literals and function forms become getters,
+  as in Solid's compiled JSX. Without `children`, the object has no children prop."
+       [attrs children]
+       (let [entries (cond-> (vec attrs)
+                       (= 1 (count children))
+                       (conj [:children (first children)])
+                       (< 1 (count children))
+                       (conj [:children `(cljs.core/array
+                                           ~@(core/for [c children]
+                                               (if (static-prop? c) c `(fn [] (solid.core/-resolve ~c)))))]))
+             getters (remove (fn [[_ v]] (static-prop? v)) entries)
+             statics (filter (fn [[_ v]] (static-prop? v)) entries)]
+            `(solid.core/-props-obj
+               (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) `(fn [] (solid.core/-resolve ~v))]) getters))
+               (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) v]) statics)))))
 
 (defn- h-form
   "Returns the form that creates an element or component through Solid's runtime
@@ -90,10 +93,15 @@
         (lint/lint-element-attrs! tag (first args) env)
         `(create-element ~(name tag) ~attrs ~@(wrap-children children)))
       `(create-element ~(name tag) nil ~@(wrap-children args)))
-    (let [[attrs & children] args]
-      (if (map? attrs)
-        `(create-element ~tag (cljs.core/js-obj "props" ~(wrap-component-props attrs)) ~@(wrap-children children))
-        `(create-element ~tag ~@(wrap-children args))))))
+    (let [[attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])]
+      `(create-element ~tag ~(props-form attrs nil) ~@(wrap-children children)))))
+
+(defn- component-form
+  "Returns the form that creates a component with `createComponent`, as Solid's compiled
+  JSX does."
+  [tag args]
+  (let [[attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])]
+    `(solid.core/-component ~tag ~(props-form attrs children))))
 
 (defmacro $
   "Creates an element or a component. Elements with keyword tags compile to templates
@@ -102,7 +110,8 @@
   (core/cond
     (= tag :<>) `(cljs.core/array ~@(wrap-children args))
     (tpl/compilable? tag args) (tpl/compile-element &env tag args)
-    :else (h-form &env tag args)))
+    (keyword? tag) (h-form &env tag args)
+    :else (component-form tag args)))
 
 (defmacro $h
   "Creates an element or a component like `$`, through Solid's runtime hyperscript
@@ -116,7 +125,7 @@
           ([test then]
            `(solid.core/if ~test ~then nil))
           ([test then else]
-           `(-show (fn [] ~test) ~then ~else)))
+           `(-show (fn [] ~test) (fn [] ~then) (fn [] ~else))))
 
 (defmacro when [test then]
           `(solid.core/if ~test ~then))
@@ -139,7 +148,7 @@
                               (fn [v#]
                                   (let [~binding v#]
                                        ~then))
-                              ~else))))
+                              (fn [] ~else)))))
 
 (defmacro when-let
           "Solid's conditional rendering with binding.
@@ -173,7 +182,7 @@
                               (fn [box#]
                                   (let [~binding (aget box# 0)]
                                        ~then))
-                              ~else))))
+                              (fn [] ~else)))))
 
 (defmacro when-some
           "Solid's conditional rendering with binding, checking for non-nil.
@@ -275,24 +284,24 @@
           (let [else (last pairs)
                 marker (last (butlast pairs))]
                (assert (= :else marker) "The fallback condition has to be marked with :else")
-               `(-switch ~else
+               `(-switch (fn [] ~else)
                          ~(->> pairs
                                (drop-last 2)
                                (partition 2)
                                (mapv (fn [[test then]]
-                                         [`(fn [] ~test) then]))))))
+                                         [`(fn [] ~test) `(fn [] ~then)]))))))
 
 (defmacro case [value & pairs]
           (let [else (last pairs)
                 expr (gensym "test")]
                (assert (odd? (count pairs)) "The fallback condition has to be provided")
                `(let [~expr ~value]
-                     (-switch ~else
+                     (-switch (fn [] ~else)
                               ~(->> pairs
                                     butlast
                                     (partition 2)
                                     (mapv (fn [[test then]]
-                                              [`(fn [] (= ~expr ~test)) then])))))))
+                                              [`(fn [] (= ~expr ~test)) `(fn [] ~then)])))))))
 
 (defmacro dynamic [expr]
           `(-dynamic (fn [] ~expr)))
@@ -334,7 +343,7 @@
     ($ profile {:user @user}))
   ```"
           [fallback & children]
-          `(-loading ~fallback ~@(wrap-children children)))
+          `(-loading (fn [] ~fallback) ~@(wrap-children children)))
 
 (defmacro batch
           "Runs `body` and applies the signal writes it queued before returning."

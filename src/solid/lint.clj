@@ -86,7 +86,8 @@
     'solid.core/batch 's/batch
     'solid.core/loading 's/loading
     ;; The $ macro creates tracked scopes for element expressions
-    'solid.core/$ 's/$ '$})
+    'solid.core/$ 's/$ '$
+    'solid.core/$h 's/$h '$h})
 
 (def untracked-but-allowed-heads
   "Contexts where reactive reads won't update (called once), but are allowed.

@@ -27,6 +27,29 @@
                       (s/$h :td {:class "col-md-1"} (s/$h :a (s/$h :span {:class "remove" :aria-hidden "true"})))
                       (s/$h :td {:class "col-md-6"}))))))
 
+;; The same table with each row as a component, to measure component creation
+(defui row-compiled [{:keys [row]}]
+  ($ :tr
+     ($ :td {:class "col-md-1"} (:id row))
+     ($ :td {:class "col-md-4"} ($ :a {:on-click #(reset! (:label row) "clicked")} @(:label row)))
+     ($ :td {:class "col-md-1"} ($ :a ($ :span {:class "remove" :aria-hidden "true"})))
+     ($ :td {:class "col-md-6"})))
+
+(defui row-hyperscript [{:keys [row]}]
+  (s/$h :tr
+        (s/$h :td {:class "col-md-1"} (:id row))
+        (s/$h :td {:class "col-md-4"} (s/$h :a {:on-click #(reset! (:label row) "clicked")} @(:label row)))
+        (s/$h :td {:class "col-md-1"} (s/$h :a (s/$h :span {:class "remove" :aria-hidden "true"})))
+        (s/$h :td {:class "col-md-6"})))
+
+(defui rows-compiled [props]
+  ($ :table {:class "table"}
+     ($ :tbody (s/for [[row] (:rows props)] ($ row-compiled {:row row})))))
+
+(defui rows-hyperscript [props]
+  (s/$h :table {:class "table"}
+        (s/$h :tbody (s/for [[row] (:rows props)] (s/$h row-hyperscript {:row row})))))
+
 (defn- now [] (js/performance.now))
 
 (defn- run-once [table n]
@@ -52,20 +75,23 @@
 (defn- median [xs]
   (nth (sort xs) (quot (count xs) 2)))
 
-(defn- run-case [n iterations]
-  (let [variants {:compiled table-compiled :hyperscript table-hyperscript}]
-    (dotimes [_ 3] (doseq [t (vals variants)] (run-once t n)))
-    (let [samples (reduce (fn [acc _]
+(defn- run-case [n iterations variants]
+  (dotimes [_ 3] (doseq [t (vals variants)] (run-once t n)))
+  (let [samples (reduce (fn [acc _]
                             (reduce-kv (fn [acc k t] (update acc k conj (run-once t n))) acc variants))
                           {:compiled [] :hyperscript []}
                           (range iterations))]
       (into {} (for [[k xs] samples]
                  [k (into {} (for [m [:create :update :clear]]
-                               [m (median (map m xs))]))])))))
+                               [m (median (map m xs))]))]))))
 
 (defn run []
-  (let [results {:rows-1000 (run-case 1000 15)
-                 :rows-10000 (run-case 10000 5)}]
+  (let [tables {:compiled table-compiled :hyperscript table-hyperscript}
+        components {:compiled rows-compiled :hyperscript rows-hyperscript}
+        results {:rows-1000 (run-case 1000 15 tables)
+                 :rows-10000 (run-case 10000 5 tables)
+                 :component-rows-1000 (run-case 1000 15 components)
+                 :component-rows-10000 (run-case 10000 5 components)}]
     (set! (.-benchResults js/window) (clj->js results))
     results))
 

@@ -4,22 +4,8 @@
     (:require ["solid-js" :as solid]
               ["@solidjs/web" :as sw]
               ["@solidjs/h" :default h]
-              [solid.compiler :as sc]))
-
-;; Marker type for reactive prop values
-;; This distinguishes reactive getters from regular callbacks
-(deftype ReactiveProp [getter])
-
-(defn reactive-prop
-      "Wraps a function as a reactive prop getter.
-  Used internally by the $ macro for component props."
-      [f]
-      (->ReactiveProp f))
-
-(defn reactive-prop?
-      "Returns true if x is a reactive prop wrapper."
-      [x]
-      (instance? ReactiveProp x))
+              [solid.compiler :as sc]
+              [solid.props :as props]))
 
 (defn element?
       "Returns true if x is an element created with `$`."
@@ -198,79 +184,122 @@
       ([f {:keys [equals]}]
        (solid/createMemo f #js {:equals equals})))
 
+(defn -resolve
+      "Creates the element of `x` if `x` is an element created with `$`, so that the element
+  belongs to the reactive owner that is current now. Arrays are resolved item by item."
+      [x]
+      (cond
+        (element? x) (-resolve (x))
+        (array? x) (.map x -resolve)
+        :else x))
+
+(defn- define-getter! [o k f]
+      (js/Object.defineProperty o k #js {:get f :enumerable true :configurable true}))
+
+(defn -props-obj
+      "Creates a props object from `getters`, a flat array of names and getter functions, and
+  `statics`, a flat array of names and values."
+      [getters statics]
+      (let [o #js {}]
+        (loop [i 0]
+          (when (< i (alength getters))
+            (define-getter! o (aget getters i) (aget getters (inc i)))
+            (recur (+ i 2))))
+        (loop [i 0]
+          (when (< i (alength statics))
+            (aset o (aget statics i) (aget statics (inc i)))
+            (recur (+ i 2))))
+        o))
+
+(defn -component
+      "Returns an element that creates the component `comp` with `props`."
+      [comp props]
+      (-compiled (fn [] (-resolve (solid/createComponent comp props)))))
+
+(defn- flow
+      "Creates the control-flow component `comp`, such as `Show`, with getters for the
+  `getters` map of names to functions and the `statics` map of names to values."
+      [comp getters statics]
+      (let [o #js {}]
+        (doseq [[k f] getters] (define-getter! o k #(-resolve (f))))
+        (doseq [[k v] statics] (aset o k v))
+        (-resolve (solid/createComponent comp o))))
+
 (defn -show [test then else]
-      (h solid/Show
-         #js {:when test
-              :fallback else}
-         then))
+      (flow solid/Show {"when" test "children" then "fallback" else} {}))
 
 (defn -show-keyed [test then else]
-      (h solid/Show
-         #js {:when test
-              :keyed true
-              :fallback else}
-         then))
+      (flow solid/Show {"when" test "fallback" else}
+            {"keyed" true "children" (fn [v] (-resolve (then v)))}))
 
 (defn -for [coll body]
-      (h solid/For
-         #js {:each coll}
-         body))
+      (flow solid/For {"each" coll} {"children" (fn [v i] (-resolve (body v i)))}))
 
 (defn -index [coll body]
-      (h solid/For
-         #js {:each coll
-              :keyed false}
-         body))
+      (flow solid/For {"each" coll}
+            {"keyed" false "children" (fn [v i] (-resolve (body v i)))}))
 
 (defn -switch [else pairs]
-      (apply h solid/Switch
-             #js {:fallback else}
-             (for [[test then] pairs]
-                  (h solid/Match
-                     #js {:when test}
-                     then))))
+      (flow solid/Switch
+            {"fallback" else
+             "children" (fn []
+                          (into-array
+                            (for [[test then] pairs]
+                              (let [o #js {}]
+                                (define-getter! o "when" test)
+                                (define-getter! o "children" #(-resolve (then)))
+                                (solid/createComponent solid/Match o)))))}
+            {}))
 
 (defn -dynamic [f]
-      (h (sw/dynamic f)))
+      (-resolve (solid/createComponent (sw/dynamic f) #js {})))
 
 (defn -children [f]
       (solid/children f))
 
-(deftype ReactiveProps [props-map]
-         ILookup
-         (-lookup [this k]
-                  (-lookup this k nil))
-         (-lookup [this k not-found]
-                  (let [v (get props-map k not-found)]
-                       (if (reactive-prop? v)
-                           ((.-getter ^ReactiveProp v))  ; Call the reactive getter
-                           v)))            ; Pass through as-is (callbacks, literals, etc.)
+(defonce ^:private prop-names (js/Map.))
 
-         ISeqable
-         (-seq [this]
-               (seq props-map))
+(defn- prop-name [k]
+      (or (.get prop-names k)
+          (let [n (props/prop-name k)]
+            (.set prop-names k n)
+            n)))
 
-         ICounted
-         (-count [this]
-                 (count props-map)))
+(deftype ReactiveProps [^js props children]
+  ILookup
+  (-lookup [this k]
+    (-lookup this k nil))
+  (-lookup [_ k not-found]
+    (if (= k :children)
+      (if children children not-found)
+      (let [n (prop-name k)]
+        (if (js-in n props) (unchecked-get props n) not-found))))
 
-(defn -props [^js props]
-      (when props
-            (let [clj-props (.-props props)
-                  children (-children #(.-children props))]
-                 (->ReactiveProps
-                  (cond-> clj-props
-                          children (assoc :children children))))))
+  ISeqable
+  (-seq [_]
+    (seq (for [n (js/Object.keys props)]
+           (if (= "children" n)
+             (MapEntry. :children children nil)
+             (MapEntry. (props/prop-key n) (unchecked-get props n) nil)))))
+
+  ICounted
+  (-count [_]
+    (alength (js/Object.keys props))))
+
+(defn -props
+      "Wraps the JavaScript props object of a `defui` component, whose keywords look up props
+  by the names `solid.props/prop-name` gives them. Children are resolved once, here."
+      [^js props]
+      (->ReactiveProps props
+                       (when (js-in "children" props)
+                         (-children #(.-children props)))))
 
 (defn -error-boundary [fallback & children]
-      (apply h solid/Errored
-             #js {:fallback fallback}
-             children))
+      (flow solid/Errored {"children" #(into-array children)}
+            {"fallback" (fn [err reset] (-resolve (fallback err reset)))}))
 
 (defn -loading [fallback & children]
-      (apply h solid/Loading
-             #js {:fallback fallback}
-             children))
+      (flow solid/Loading {"fallback" fallback "children" #(into-array children)} {}))
 
 (defn -lazy [f]
       (solid/lazy f))
@@ -321,7 +350,7 @@
       "Renders `root` into the DOM `node` and returns a function that disposes it.
   `root` is either an element created with `$` or a component."
       [root node]
-      (sw/render (if (element? root) root (h root)) node))
+      (sw/render (if (element? root) root (-component root #js {})) node))
 
 (defn render-to-string [el {:keys [nonce render-id]}]
       (sw/renderToString (fn [] el) #js {:nonce nonce :renderId render-id}))

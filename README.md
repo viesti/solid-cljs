@@ -191,9 +191,46 @@ each instance, and generates code that binds only the dynamic attributes and chi
 ;; then inserts @count into the span and attaches the click handler
 ```
 
-Components, and elements whose tags are not literal keywords, go through Solid's runtime
-hyperscript. `$h` creates any element that way, which helps when comparing the two:
-`yarn bench` measures both in a production build.
+Components compile to `createComponent` calls, as in Solid's compiled JSX. Elements whose tags
+are not literal keywords go through Solid's runtime hyperscript, `h`. `$h` creates any element or
+component that way, which helps when comparing the two: `yarn bench` measures both in a
+production build.
+
+### Component props
+
+A component receives its props as a JavaScript object. Keys become camelCase JavaScript names
+(`:on-click` is `onClick`, `:active-class` is `activeClass`), except `aria-*` and `data-*` names.
+Values other than literals and `fn` forms become getters, which read their expression each time
+the prop is read, so props stay reactive. Children arrive as the `children` prop.
+
+A `defui` component looks props up by keyword, converting the keyword the same way, so `defui`
+code keeps using kebab-case keys:
+
+```clojure
+(defui toggle [{:keys [on-toggle label]}]
+  ($ :button {:on-click on-toggle} label))
+
+($ toggle {:on-toggle #(swap! open? not) :label "Menu"})
+```
+
+Components written in JavaScript receive the props they expect. Solid's own components are
+examples:
+
+```clojure
+(ns app.panel
+  (:require ["solid-js" :refer [Show]]
+            ["@solidjs/web" :refer [Portal]]
+            [solid.core :refer [$]]))
+
+($ Show {:when @user :fallback ($ :p "Signed out")}
+   ($ :p "Signed in"))
+
+($ Portal {:mount (js/document.getElementById "modal")}
+   ($ dialog))
+```
+
+Values are passed as they are, so a keyword value stays a keyword, and a JavaScript component
+receives ClojureScript maps and vectors unless the code converts them.
 
 ### Attributes
 

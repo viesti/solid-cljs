@@ -84,9 +84,9 @@ browser with "Export ... is not defined in module".
 ## Compared with solid-cljs
 
 solid-cljs runs on ClojureScript, and its `$` macro plays the part of Solid's JSX compiler: it
-compiles elements to templates and wraps reactive expressions in functions, and components still
-go through `@solidjs/h` at runtime. Here, Solid's own compiler does all of that, so there is no
-macro layer to keep in step with Solid. The production bundle of this app is 75 kB (29 kB gzipped).
+compiles elements to templates and components to `createComponent` calls, and wraps reactive
+expressions in functions. Here, Solid's own compiler does that work, so there is no macro layer to
+keep in step with Solid. The production bundle of this app is 75 kB (29 kB gzipped).
 
 The solid-cljs source cannot be shared with Squint as it stands. Its macros are written in Clojure
 (`.clj` files) for the ClojureScript compiler, and its runtime relies on ClojureScript's
