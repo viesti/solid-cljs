@@ -537,12 +537,46 @@ source in a memo, and `s/map-array` maps a reactive list with a function called 
 
 ### Store utilities
 
-Create data store via `createStore`. The setter receives a draft to mutate.
+Create a store via `createStore` from a map or a JavaScript object. Stores hold plain
+JavaScript data, so maps and vectors written into a store become objects and arrays, and reads
+are tracked per property.
 
 ```clojure
-(let [[store set-store] (s/store #js {:value 0})]
-  (set-store (fn [draft] (set! (.-value draft) 1))))
+(let [[todos set-todos] (s/store {:items [{:id 1 :title "Write docs" :done? false}]})]
+  ($ :ul
+     (s/for [[todo] (s/sget todos :items)]
+       ($ :li (.-title todo)))))
 ```
+
+`s/sget` reads a path of keywords and indexes. `s/sset!` and `s/supdate!` write a path through
+the setter, and the setter also takes a function that mutates the draft:
+
+```clojure
+(s/sset! set-todos [:items 0 :done?] true)
+(s/supdate! set-todos [:items 0 :title] str "!")
+(set-todos (fn [draft] (.push (.-items draft) #js {:id 2 :title "Ship" :done? false})))
+```
+
+A draft function replaces the store's contents only when it returns `(s/replacement value)`.
+Its other return values are ignored, since a ClojureScript function returns its last value,
+such as the object that a `set!` assigns.
+
+```clojure
+(set-todos (fn [draft]
+             (s/replacement (update (s/store->clj draft) :items #(remove :done? %)))))
+```
+
+A function instead of initial data derives the store: a function of no arguments returns its
+value (which may be a promise), and a function of a draft mutates it, starting from a seed.
+`s/projection` creates a read-only derived store whose items keep their identity by key:
+
+```clojure
+(def active (s/projection (fn [] (remove :done? @all-todos)) nil {:key "id"}))
+```
+
+`s/reconcile!` merges new data into a draft subtree by key, `s/snapshot` and `s/store->clj` copy
+a store's data, and `s/deep` reads all of it in an effect's compute function so that the effect
+follows every change.
 
 ## Server rendering
 

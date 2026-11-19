@@ -179,12 +179,18 @@
        (let [[value set-value] (solid/createOptimistic v (when equals #js {:equals equals}))]
          (signal-ref value set-value))))
 
+(declare ->js source-fn wrap-setter)
+
 (defn optimistic-store
       "Creates an optimistic store from `source`, a value or a function computing it (which may
   return a promise), and returns `[store set-store]`. Writes inside an action show at once
-  and revert when the action settles."
-      ([source] (solid/createOptimisticStore source))
-      ([source initial] (solid/createOptimisticStore source initial)))
+  and revert when the action settles. `set-store` works as the one of `store` does."
+      ([source]
+       (let [[st set-store] (solid/createOptimisticStore (if (fn? source) (source-fn source) (->js source)))]
+         [st (wrap-setter set-store)]))
+      ([source initial]
+       (let [[st set-store] (solid/createOptimisticStore (source-fn source) (->js initial))]
+         [st (wrap-setter set-store)])))
 
 ;; Actions, driven by an iterator that Solid's action steps like a generator
 
@@ -550,8 +556,118 @@
 (defn -reaction [f]
       (solid/createReaction (with-cleanup f)))
 
-(defn store [v]
-      (solid/createStore v))
+;; Stores
+
+(deftype Replacement [value])
+
+(defn replacement
+      "Marks `v` as the value that a store's draft function returns to replace the draft.
+  Draft functions' other return values are ignored, since ClojureScript functions return their
+  last value."
+      [v]
+      (->Replacement v))
+
+(defn- ->js
+      "Converts ClojureScript collections to the plain JavaScript objects and arrays that stores
+  hold, and leaves other values as they are."
+      [v]
+      (if (coll? v) (clj->js v) v))
+
+(defn- draft-fn
+      "Wraps the draft function `f` of a store so that only a `replacement` return value
+  replaces the draft."
+      [f]
+      (fn [draft]
+        (let [r (f draft)]
+          (if (instance? Replacement r) (->js (.-value r)) js/undefined))))
+
+(defn- source-fn
+      "Wraps the source function of a derived store: a draft function of one argument, or a
+  function of none that returns the value."
+      [f]
+      (if (zero? (.-length f)) (fn [] (->js (f))) (draft-fn f)))
+
+(defn- wrap-setter [set-store]
+      (fn [x]
+        (set-store (if (fn? x) (draft-fn x) (constantly (->js x))))))
+
+(defn store
+      "Creates a store and returns `[store set-store]`. `init` is a map or JavaScript object, or
+  a function that derives the store: of no arguments, returning its value (which may be a
+  promise), or of a draft, mutating it, with `seed` as the starting value.
+
+  `set-store` takes a function that mutates the draft, or a value that replaces the store.
+  A draft function replaces the draft only when it returns `(s/replacement v)`."
+      ([init]
+       (if (fn? init)
+         (store init nil nil)
+         (let [[st set-store] (solid/createStore (->js init))]
+           [st (wrap-setter set-store)])))
+      ([init seed] (store init seed nil))
+      ([init seed opts]
+       (let [[st set-store] (solid/createStore (source-fn init) (->js seed) (clj->js opts))]
+         [st (wrap-setter set-store)])))
+
+(defn projection
+      "Creates a read-only derived store from `f`, a function of no arguments returning its value,
+  or of a draft that it mutates starting from `seed`. Items keep their identity across
+  recomputations, keyed by `(:key opts)` (default \"id\")."
+      ([f] (solid/createProjection (source-fn f)))
+      ([f seed] (projection f seed nil))
+      ([f seed opts] (solid/createProjection (source-fn f) (->js seed) (clj->js opts))))
+
+(defn- prop-key-name [k]
+      (if (keyword? k) (name k) k))
+
+(defn sget
+      "Reads the value at `path` in a store, a sequence of keywords and indexes. Reads are
+  tracked."
+      [store & path]
+      (reduce (fn [o k] (when (some? o) (unchecked-get o (prop-key-name k)))) store path))
+
+(defn- parent-of [draft path]
+      (reduce (fn [o k] (unchecked-get o (prop-key-name k))) draft (butlast path)))
+
+(defn sset!
+      "Sets the value at `path` in a store through its `set-store`."
+      [set-store path v]
+      (set-store (fn [draft]
+                   (unchecked-set (parent-of draft path) (prop-key-name (last path)) (->js v))
+                   nil)))
+
+(defn supdate!
+      "Updates the value at `path` in a store with `(apply f value args)` through its
+  `set-store`."
+      [set-store path f & args]
+      (set-store (fn [draft]
+                   (let [parent (parent-of draft path)
+                         k (prop-key-name (last path))]
+                     (unchecked-set parent k (->js (apply f (unchecked-get parent k) args))))
+                   nil)))
+
+(defn reconcile!
+      "Reconciles `value` into the draft subtree `target`, keeping the identity of items whose
+  `key` (default \"id\") matches."
+      ([target value] (reconcile! target value "id"))
+      ([target value key]
+       ((solid/reconcile (->js value) (prop-key-name key)) target)
+       nil))
+
+(defn snapshot
+      "Returns a plain, non-reactive copy of a store."
+      [store]
+      (solid/snapshot store))
+
+(defn store->clj
+      "Returns the data of a store as ClojureScript data with keyword keys."
+      [store]
+      (js->clj (solid/snapshot store) :keywordize-keys true))
+
+(defn deep
+      "Reads every value nested in a store, so that an effect's compute function that calls it
+  tracks the whole store."
+      [store]
+      (solid/deep store))
 
 (defn external-store [subscribe get-snapshot]
       (let [s (signal (get-snapshot))
