@@ -113,4 +113,7 @@ against it. What remains is under Deferred.
 ### Deferred
 
 Server components (`@solidjs/web/frames`), `storage`, `performance-tracks`, trusted types,
-`dispatchAsInteraction`, asset functions, and the Clojars release.
+`dispatchAsInteraction` and the asset functions.
+
+Not planned: a Clojars release. The fork is used through git dependencies pinned to a commit
+on `viesti/solid-2`.
