@@ -67,7 +67,8 @@
                                   :style {:margin-right 4}}
                          (name l)))
                (s/loading ($ :p {:class :muted} "Loading...")
-                          ($ :p (text) ", world!")))))
+                          ;; Dims the old greeting while the next one loads
+                          ($ :p {:class {:muted (s/pending? (text))}} (text) ", world!")))))
 
 (defui app []
        ($ :main
