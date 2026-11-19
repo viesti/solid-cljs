@@ -536,6 +536,20 @@
                          (if (keyword? v) (name v) v))))
         o))
 
+(declare render-options)
+
+(defn -claim!
+      "Lets a router claim the anchor or form `el`, to mark active links or intercept
+  navigation."
+      [el owner]
+      (sw/claimElement el (or owner js/undefined))
+      js/undefined)
+
+(defn -ssr-link-claim
+      "Returns the attributes that a router's link claim adds to an anchor on the server."
+      [href aria-current]
+      (sw/ssrLinkClaim (render-options {"href" href "aria-current" aria-current})))
+
 (defn -spread! [el accessor]
       (sw/spread el accessor true)
       js/undefined)

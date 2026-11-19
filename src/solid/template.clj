@@ -236,11 +236,36 @@
       [(assoc (first merged) :only? true)]
       merged)))
 
+(def ^:private claimed-attributes
+  "The attribute whose element a router claims, by tag: links and forms."
+  {"a" :href "form" :action})
+
+(defn- claim-attrs
+  "Adds the claim of an anchor or a form to its compiled attributes, as Solid's compiler does,
+  so that a router can mark active links and intercept navigation. The client claims the
+  element once it exists, and again with its owner whenever a dynamic `href` or `action`
+  changes. On the server, an anchor renders the attributes the router's link claim adds."
+  [tag attrs compiled]
+  (if-let [k (claimed-attributes tag)]
+    (let [v (get attrs k)
+          dynamic? (and (contains? attrs k) (not (sc/literal? v)))]
+      (cond-> compiled
+        (not dynamic?)
+        (update :ops conj (fn [el] `(solid.core/-claim! ~el nil)))
+        dynamic?
+        (update :ops conj (fn [el]
+                            `(let [owner# (solid.core/get-owner)]
+                               (solid.core/-effect (fn [] ~v)
+                                                   (fn [_# _#] (solid.core/-claim! ~el owner#))))))
+        (= "a" tag)
+        (update :ssr conj `(solid.core/-ssr-link-claim ~v ~(get attrs :aria-current)))))
+    compiled))
+
 (defn- parse-element [env tag args]
   (let [tag-info (parse-tag tag)
         [attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])
         _ (when (map? (first args)) (lint/lint-element-attrs! tag attrs env))
-        {:keys [html ops ssr ssr-html content]} (compile-attrs tag-info attrs)]
+        {:keys [html ops ssr ssr-html content]} (claim-attrs (:name tag-info) attrs (compile-attrs tag-info attrs))]
     {:type :element
      :tag (:name tag-info)
      :attrs html
@@ -273,7 +298,10 @@
 (defn- effect-form?
   "Returns true if an operation on an element creates an effect."
   [form]
-  (or (form-head? 'solid.core/-effect form) (form-head? 'solid.core/-spread! form)))
+  (or (form-head? 'solid.core/-effect form)
+      (form-head? 'solid.core/-spread! form)
+      (and (seq? form) (= 'clojure.core/let (first form))
+           (some (partial form-head? 'solid.core/-effect) (drop 2 form)))))
 
 (defn- insert-form
   "Returns the form that inserts the dynamic child `c` into `el`. A component is created

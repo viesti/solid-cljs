@@ -680,6 +680,25 @@ both. Streamed HTML hydrates once its content has arrived and been revealed, and
 coordinates the reveal of streamed `s/loading` boundaries on the server as in the browser. Without `:solid/hydratable`, `s/render` appends to a container that is not empty, so clear
 the server HTML from it before rendering.
 
+## Routing
+
+[`@solidjs/router`](https://github.com/solidjs/solid-router) 2.0 works with plain `<a>` and
+`<form>` elements: it claims them to mark the current link with `aria-current` and
+`data-active` and to handle navigation. `$` lets the router claim the anchors and forms it
+creates, as Solid's compiler does, on the client and on the server:
+
+```clojure
+(def router
+  (createRouter #js {:routes #js [#js {:path "/" :component home}
+                                   #js {:path "/about" :component about}]}))
+
+(s/render ($ router (fn [props]
+                      ($ :main
+                         ($ :nav ($ :a {:href "/"} "Home") ($ :a {:href "/about"} "About"))
+                         (.-children props))))
+          (js/document.getElementById "root"))
+```
+
 ## Code splitting
 
 `s/lazy` creates a component from a promise of its code, which renders under `s/loading` while

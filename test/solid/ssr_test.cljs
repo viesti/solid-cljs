@@ -1,6 +1,7 @@
 (ns solid.ssr-test
   (:require [cljs.test :refer [deftest is async]]
-            [solid.core :as s :refer [$ defui]]))
+            [solid.core :as s :refer [$ defui]]
+            ["@solidjs/router" :refer [createRouter memoryHistory]]))
 
 (defn- html [root]
   (s/render-to-string root))
@@ -142,3 +143,15 @@
           (is (re-find #"\$dfj\(\[\"\d+\",\"\d+\"\]\)" (nth chunks a-content))
               "both boundaries reveal together once the slower one is ready"))
         (done)))))
+
+(defui home-page [] ($ :p "Home"))
+
+(deftest router-links-on-the-server
+  (let [router (createRouter #js {:routes #js [#js {:path "/" :component home-page}]
+                                  :history (memoryHistory "/")})
+        out (html ($ router (fn [props]
+                              ($ :nav ($ :a#home {:href "/"} "Home") ($ :a#other {:href (str "/oth" "er")} "Other")
+                                 (.-children ^js props)))))]
+    (is (re-find #"<a id=\"home\" href=\"/\"[^>]*aria-current=\"page\"" out))
+    (is (not (re-find #"<a id=\"other\"[^>]*aria-current" out)))
+    (is (re-find #"<p>Home</p>" out))))

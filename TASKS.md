@@ -1,0 +1,68 @@
+# Solid 2 work order
+
+Remaining work for full Solid 2.0 support in solid-cljs, in order. Update the status of each
+step as it changes, and record decisions under the step.
+
+## Working notes
+
+- Work happens on branch `solid-2`, pushed to the fork remote `viesti`
+  (`git push viesti solid-2`). No pull request to roman01la/solid-cljs for now.
+- Tests: `yarn test` (unit tests, then server tests under plain Node), `yarn vitest`
+  (browser tests, compiled normally and with `:solid/hydratable`, plus the hydration round
+  trip). Run `rm -rf .shadow-cljs/builds` first after changing macros or compiler options.
+- After pushing library changes, pin the new commit in README.md, examples/shadow-cljs/deps.edn,
+  examples/clojurific/deps.edn, examples/squint/squint.edn and examples/squint/README.md, check
+  the three examples against the pushed commit, and push again.
+- Reference output: compile JSX with `@solidjs/babel-plugin` from the scratchpad project
+  jsxref (`node compile.cjs file.jsx dom|ssr`, `node h.cjs file.jsx dom|ssr` for hydratable).
+- Where things are: macros in src/solid/core.clj, template compiler in src/solid/template.clj,
+  runtime in src/solid/core.cljs, prop names in src/solid/props.cljc, linter in
+  src/solid/lint.clj, clj-kondo config in resources/clj-kondo.exports.
+
+## Steps
+
+### 1. Router claims for anchors and forms — done
+
+Templates claim `<a>` and `<form>` (src/solid/template.clj `claim-attrs`), and server output adds
+`ssrLinkClaim` attributes to anchors. Tests: test/vitest/router.cljs (active link and
+navigation with router 2.0) and `router-links-on-the-server` in test/solid/ssr_test.cljs. The
+browser test failed once, on its first run after a clean build, and passed in 14 runs since,
+including one with a cold Vite cache. Watch for it.
+
+Solid's compiler calls `claimElement(el)` for `<a>` and `<form>` on the client (after the
+dynamic `href`/`action` is set, with the owner when it is dynamic) and `ssrLinkClaim(attrs)` on
+the server. Router 2.0 uses the claims for `aria-current`/`data-active` and form interception.
+Emit the same from templates, then test with `@solidjs/router` 2.0 (devDependency).
+
+### 2. Signal, memo and effect options; contexts without a default — todo
+
+- `s/signal` and `s/memo`: `:owned-write`, `:unobserved`, `:lazy`, `:name`.
+- `s/effect`: the `{effect, error}` form, as an `:error` option.
+- `s/create-context` with no argument (default-less, throws without a provider).
+
+### 3. Server functions — todo
+
+A macro (working name `s/defserverfn`) that registers the function with
+`registerServerReference` on the server and emits `createServerReference` with the same id on
+the client, plus a handler wrapper for `handleServerFunctionRequest`. The server body must not
+reach browser bundles: require `:solid/render :dom` for client builds, or remove the server
+branch otherwise. Decide the id scheme (namespace and name).
+
+### 4. Smaller API gaps — todo
+
+`markRaw`, `until`, `NotReadyError`, `TimeoutError`, `createOwner`, `isDisposed`, `repeat`,
+`enableExternalSource`, `configureClientErrors`, `resetErrorHalt`, `isHydrating`,
+`onHydrationEnd`, `lazyModule`, event handler data tuples, `respond`, `reload`, cookie helpers,
+`configureServerErrors`.
+
+### 5. Tooling — todo
+
+- Component names and locations in dev builds (`createComponent(Comp, props, name, loc)`).
+- Hot reload through `solid-js/refresh`, keeping component state.
+- Custom elements through templates: test properties and attributes.
+- `solid.squint`: store, action and server-rendering helpers.
+
+### Deferred
+
+Server components (`@solidjs/web/frames`), `storage`, `performance-tracks`, trusted types,
+`dispatchAsInteraction`, asset functions, and the Clojars release.
