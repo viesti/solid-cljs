@@ -34,7 +34,7 @@ The Solid 2 port is not released to Clojars yet. Depend on it with a git depende
 ```clojure
 {:deps {com.github.roman01la/solid-cljs
         {:git/url "https://github.com/viesti/solid-cljs"
-         :git/sha "05098e5a150cd70274c3360405d1a272a26fc527"}}}
+         :git/sha "a0c219b449e2593b3e33c49debe3bad2754ec979"}}}
 ```
 
 Then install the npm packages it requires:
@@ -90,7 +90,7 @@ dependencies from deps.edn instead of shadow-cljs.edn:
 {:paths ["src"]
  :deps {com.github.roman01la/solid-cljs
         {:git/url "https://github.com/viesti/solid-cljs"
-         :git/sha "05098e5a150cd70274c3360405d1a272a26fc527"}}}
+         :git/sha "a0c219b449e2593b3e33c49debe3bad2754ec979"}}}
 ```
 
 ```js
