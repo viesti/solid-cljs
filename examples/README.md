@@ -1,0 +1,12 @@
+# Examples
+
+The same demo app (a counter, a todo list and an async greeting) built three ways. Each folder is
+a self-contained project that depends on solid-cljs through a git dependency.
+
+| Folder | Compiler | How Solid is used |
+|---|---|---|
+| [shadow-cljs](shadow-cljs) | shadow-cljs, with Vite bundling the npm packages | solid-cljs macros (`$`, `defui`, `s/for`) |
+| [clojurific](clojurific) | Clojurific, inside Vite 8 | solid-cljs macros, the same demo/core.cljs as shadow-cljs |
+| [squint](squint) | Squint, with Solid's own JSX compiler | `#jsx` literals and the `solid.squint` helpers |
+
+Each folder's README explains how to run it.
