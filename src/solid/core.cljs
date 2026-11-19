@@ -90,9 +90,10 @@
 
 (defn- cleanup
       "Returns `x` if it is a function, which Solid then runs as a cleanup.
-  Other return values of ClojureScript callbacks are dropped."
+  Other return values of ClojureScript callbacks become `undefined`, since
+  Solid's development build rejects any other value, `null` included."
       [x]
-      (when (fn? x) x))
+      (if (fn? x) x js/undefined))
 
 (defn- with-cleanup [f]
       (fn [v prev] (cleanup (f v prev))))
@@ -134,7 +135,7 @@
 (defn on-mount
       "Runs `f` after the component's first render settles. Same as `on-settled`."
       [f]
-      (solid/onSettled (fn [] (f) nil)))
+      (solid/onSettled (fn [] (f) js/undefined)))
 
 (defn on-cleanup [f]
       (solid/onCleanup f))

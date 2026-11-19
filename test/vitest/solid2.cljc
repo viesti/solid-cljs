@@ -108,3 +108,19 @@
       (reset! label "b")
       (s/flush)
       (.. (expect (.-textContent c)) (toBe "b")))))
+
+(test
+  "Effect callbacks may return any value in the development build"
+  (fn []
+    (let [n (s/signal 0)
+          seen (atom [])
+          c (mount ($ (fn [_]
+                        (s/effect (fn [] @n) #(swap! seen conj %))
+                        (s/effect #(deref n))
+                        (s/on-settled #(swap! seen conj :settled))
+                        ($ :span @n))))]
+      (s/flush)
+      (reset! n 1)
+      (s/flush)
+      (.. (expect (.-textContent c)) (toBe "1"))
+      (.. (expect (clj->js @seen)) (toEqual #js [0 "settled" 1])))))
