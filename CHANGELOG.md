@@ -42,6 +42,18 @@ app needs.
   destructured props that are read once.
 - Example projects for shadow-cljs, Clojurific and Squint, and `yarn bench`.
 
+- Routing: anchors and forms that `$` creates are claimed by `@solidjs/router` 2.0, on the
+  client and the server.
+- Options for signals, memos and effects (`:owned-write`, `:unobserved`, `:lazy`, `:error`),
+  and contexts without a default.
+- Server functions with `defserverfn` and `solid.server-functions.server/handle-request`.
+- `mark-raw`, `until`, `repeat-map`, owner and hydration utilities, cookie helpers, and
+  `[handler data]` event handlers.
+- Component names and source locations in Solid's diagnostics in development builds.
+- Custom elements are created as Solid's compiler creates them.
+- Hot reloading that keeps component state, with `:solid/refresh`.
+- `solid.squint/store`.
+
 ### Removed
 
 - `s/computed` and `s/resource`, as in Solid 2. An async `s/memo` under `s/loading` replaces
