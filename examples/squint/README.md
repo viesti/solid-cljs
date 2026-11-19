@@ -37,8 +37,19 @@ evaluates forms in the open page.
 - **vite.config.mjs** runs the Squint plugin (`squint-cljs/vite`) and Solid's plugin
   (`@solidjs/vite-plugin`). Solid's plugin compiles every `.jsx` file, including Squint's output.
 - **src/app/core.cljs** has the components.
-- **solid.squint** makes signals work with `deref`, `reset!` and `swap!`, and wraps
-  `createEffect` so that an effect callback may return any value.
+- **solid.squint** makes signals work with `deref`, `reset!` and `swap!`, wraps
+  `createEffect` so that an effect callback may return any value, and wraps `createStore` so
+  that a draft function's return value is ignored unless it is `(s/replacement v)`. The todo
+  list keeps its items in such a store.
+
+Solid's `action` takes a generator function, which Squint writes with `^:gen` and `js-yield`,
+so actions need no helper:
+
+```clojure
+(def save (action (^:gen fn [todo]
+                    (js-yield (api/save todo))
+                    (refresh todos))))
+```
 
 Squint turns this component
 

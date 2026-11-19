@@ -24,12 +24,13 @@
 
 (defn Todos []
       (let [title (s/signal "")
-            items (s/signal [{:title "Try Squint" :done true}
-                             {:title "Write a component" :done false}])
+            [items set-items] (s/store [{:title "Try Squint" :done true}
+                                        {:title "Write a component" :done false}])
             add (fn [e]
                     (.preventDefault e)
                     (when (seq @title)
-                          (swap! items conj {:title @title :done false})
+                          (let [t @title]
+                            (set-items (fn [draft] (.push draft {:title t :done false}))))
                           (reset! title "")))]
            #jsx [:section
                  [:h2 "Todos"]
@@ -40,18 +41,20 @@
                            :onInput #(reset! title (.. % -target -value))}]
                   " "
                   [:button "Add"]]
-                 [Show {:when (seq @items)
+                 [Show {:when (seq items)
                         :fallback #jsx [:p {:class "muted"} "Nothing to do."]}
                   [:ul
-                   [For {:each @items}
+                   [For {:each items}
                     (fn [item i]
                         #jsx [TodoItem {:title (:title item)
                                         :done (:done item)
-                                        :onToggle #(swap! items update-in [(i) :done] not)
-                                        :onRemove #(swap! items (fn [xs] (into (subvec xs 0 (i))
-                                                                               (subvec xs (inc (i))))))}])]]]
+                                        :onToggle #(set-items (fn [draft]
+                                                                (let [todo (aget draft (i))]
+                                                                  (aset todo "done" (not (:done todo))))))
+                                        :onRemove #(set-items (fn [draft]
+                                                                (s/replacement (.filter draft (fn [_ j] (not= j (i)))))))}])]]]
                  [:p {:class "muted"}
-                  (count (filter :done @items)) " of " (count @items) " done"]]))
+                  (count (filter :done items)) " of " (count items) " done"]]))
 
 (defn fetch-greeting
       "Resolves to a greeting after a delay, standing in for a request."

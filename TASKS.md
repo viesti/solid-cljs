@@ -84,6 +84,9 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
   (template flag 1), which upgrades them at once, and each custom element gets `_$owner`, as
   Solid's compiler does. Attributes stay attributes, as in Solid 2. Test:
   test/vitest/custom_elements.cljs.
+- `solid.squint`: done. Added `store` and `replacement` (squint/src/solid/squint.cljs); the
+  Squint example's todo list uses them. Squint writes generators (`^:gen`, `js-yield`), so it
+  uses Solid's `action` directly, and server rendering goes through Solid's own compiler.
 - Found while checking release output: the benchmark bundle had grown to 290 kB because Closure
   aliased the `solid-js` module object in `s/signal`, which stops Vite from tree-shaking it.
   Runtime functions now bind computed arguments before calling Solid, the bundle is back to
