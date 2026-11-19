@@ -2,4 +2,6 @@
  :output-dir "out"
  :extension "jsx"
  :main app.core
- :deps {com.github.roman01la/solid-cljs {:local/root "../../squint"}}}
+ :deps {com.github.roman01la/solid-cljs {:git/url "https://github.com/viesti/solid-cljs"
+                                         :git/sha "e6dc9eb306c9ec29883692daa45ca8e2b480030e"
+                                         :deps/root "squint"}}}
