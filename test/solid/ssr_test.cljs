@@ -1,6 +1,7 @@
 (ns solid.ssr-test
   (:require [cljs.test :refer [deftest is async]]
             [solid.core :as s :refer [$ defui]]
+            [solid.server]
             ["@solidjs/router" :refer [createRouter memoryHistory]]))
 
 (defn- html [root]
@@ -160,3 +161,9 @@
   (is (= {"a" "1" "b" "two"} (s/parse-cookie-header "a=1; b=two")))
   (is (re-find #"^session=abc; Path=/; Max-Age=60; HttpOnly"
                (s/serialize-cookie "session" "abc" {:max-age 60 :path "/" :http-only true}))))
+
+(deftest request-scope
+  (let [event (solid.server/create-request-event (js/Request. "http://localhost/page?x=1"))]
+    (is (= "http://localhost/page?x=1"
+           (solid.server/provide-request-event event #(.-url (.-request (s/request-event))))))
+    (is (nil? (s/request-event)) "outside the scope there is no event")))

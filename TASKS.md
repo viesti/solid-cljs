@@ -107,10 +107,33 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
 - Custom elements through templates: test properties and attributes.
 - `solid.squint`: store, action and server-rendering helpers.
 
-### 6. Deferred Solid features — in progress
+### 6. Deferred Solid features — partly done
 
-Server components (`@solidjs/web/frames`), `storage`, performance tracks, trusted types and the
-asset functions. Findings and decisions per item go here.
+- Assets (`s/warm-asset`, `s/acquire-asset`), trusted types (`s/set-trusted-types-policy!`,
+  `s/trusted-html`), performance tracks (src/solid/performance.cljs, its own namespace so only
+  builds that use it bundle it) and the request scope from `@solidjs/web/storage`
+  (src/solid/server.cljs, server only): done. Tests in test/vitest/features.cljs ("Assets,
+  trusted HTML and performance tracks") and `request-scope` in test/solid/ssr_test.cljs.
+
+### 7. Server components — todo
+
+Solid's server components are `"use server"` functions that return a template; the browser gets
+their markup, never their code (guide: node_modules/@solidjs/web/skills/server-components/SKILL.md).
+What solid-cljs would need, from reading the guide and the `@solidjs/web/frames` types:
+
+- A macro on top of `defserverfn` (working name `defservercomponent`) whose server body returns
+  a component, and whose result the handler streams as a frame
+  (`frameTransformResult` and related in `@solidjs/web/frames/server`).
+- Slots: a server component's props name slots (`Slot<Props>`), placed in its markup as
+  elements (`<props.editor id={...} />`), each rendered between markers that the client fills
+  with a client component. Find what Solid's compiler emits for a slot placement by compiling
+  the guide's example with `@solidjs/vite-plugin` and `serverFunctions: {components: true}`,
+  then emit the same from `$` when the tag is a slot of a server component's props.
+- `$key` on elements for morph identity across refetches, and `asyncArg` for async slot props.
+- The client: `installServerComponents` from `@solidjs/web/frames/client`, and a component
+  that renders a server component's frame with slot fills from the client.
+- Tests: render a server component in the Node test build, apply its frame in a browser test,
+  and check slot fills and a refetch that keeps a keyed fill's state.
 
 ### Status
 

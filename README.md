@@ -784,6 +784,26 @@ or to a component, as from shadow-cljs's `shadow.lazy/load`:
 (s/loading ($ spinner) ($ editor {:doc doc}))
 ```
 
+## Assets, trusted types and performance tracks
+
+`s/acquire-asset` adds a stylesheet or module to the document while a component uses it and
+returns a function that releases it, and `s/warm-asset` starts loading one early:
+
+```clojure
+(let [release (s/acquire-asset {:type :style :href "/editor.css"})]
+  (s/on-cleanup release))
+```
+
+On a page that requires Trusted Types, `s/set-trusted-types-policy!` makes Solid parse its
+templates through the policy's `createHTML`, and `s/trusted-html` passes HTML through it.
+
+`solid.performance/enable-performance-tracks` records Solid's reactive work as tracks in the
+browser's performance panel and returns a function that stops recording.
+
+On the server, `solid.server/provide-request-event` runs a function with a request event in
+scope, which `s/request-event` returns, and `solid.server/create-request-event` builds one from
+a fetch `Request`.
+
 ## Hot reloading
 
 With the compiler option `:solid/refresh` in a development build, a hot reload swaps the

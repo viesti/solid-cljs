@@ -2,6 +2,7 @@
   (:require-macros [solid.core])
   (:require
     [solid.core :as s :refer [$ defui]]
+    [solid.performance]
     ["@solidjs/testing-library" :refer [render]]
     ["vitest" :refer [expect test]]))
 
@@ -339,3 +340,22 @@
       (let [p (s/until @on)]
         (reset! on true)
         (-> p (.then (fn [v] (.. (expect v) (toBe true)))))))))
+
+(test
+  "Assets, trusted HTML and performance tracks"
+  (fn []
+    (let [href "/__solid-cljs-test.css"
+          release (s/acquire-asset {:type :style :href href})
+          link #(js/document.head.querySelector (str "link[href=\"" href "\"]"))
+          stop (solid.performance/enable-performance-tracks)]
+      (.. (expect (some? (link))) (toBe true))
+      (.. (expect (s/trusted-html "<b>x</b>")) (toBe "<b>x</b>"))
+      (let [parsed (atom [])]
+        (s/set-trusted-types-policy! #js {:createHTML (fn [html] (swap! parsed conj html) html)})
+        (mount ($ :p.trusted-types-probe "parsed through the policy"))
+        (s/set-trusted-types-policy! js/undefined)
+        (.. (expect (some #(re-find #"trusted-types-probe" %) @parsed)) (toBeTruthy)))
+      (stop)
+      (release)
+      (-> (wait 200)
+          (.then (fn [] (.. (expect (nil? (link))) (toBe true))))))))

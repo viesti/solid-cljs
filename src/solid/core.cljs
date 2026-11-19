@@ -951,6 +951,38 @@
       ([f] (solid/lazyModule f))
       ([f module-url] (solid/lazyModule f module-url)))
 
+;; Assets and trusted types
+
+(defn- asset-descriptor [{:keys [type href id content attrs] :as descriptor}]
+      (if (map? descriptor)
+        (render-options {"type" (name type) "href" href "id" id "content" content
+                         "attrs" (when attrs (clj->js attrs))})
+        descriptor))
+
+(defn warm-asset
+      "Starts loading an asset before it is needed: a map of `:type` (`:style`, `:inline-style`
+  or `:module`) and `:href`, or `:id` and `:content` for inline styles, with optional
+  `:attrs`."
+      [descriptor]
+      (sw/warmAsset (asset-descriptor descriptor)))
+
+(defn acquire-asset
+      "Adds an asset to the document while something uses it, and returns a function that
+  releases it. The asset is removed once every user has released it."
+      [descriptor]
+      (sw/acquireAsset (asset-descriptor descriptor)))
+
+(defn set-trusted-types-policy!
+      "Makes Solid parse templates and HTML through the Trusted Types policy `policy`, an object
+  with a `createHTML` function, as pages with a `require-trusted-types-for` policy need."
+      [policy]
+      (sw/setTrustedTypesPolicy policy))
+
+(defn trusted-html
+      "Returns `html` as the policy that `set-trusted-types-policy!` set makes it, or as is."
+      [html]
+      (sw/trustedHTML html))
+
 ;; Server and document utilities
 
 (def no-hydration
