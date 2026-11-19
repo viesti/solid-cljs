@@ -261,11 +261,28 @@
         (update :ssr conj `(solid.core/-ssr-link-claim ~v ~(get attrs :aria-current)))))
     compiled))
 
+(defn- custom-element? [tag]
+  (str/includes? tag "-"))
+
+(defn- custom-element-attrs
+  "Gives a custom element the reactive owner it is created under, as Solid's compiler does,
+  so that a web component can read the context around it."
+  [tag compiled]
+  (cond-> compiled
+    (custom-element? tag)
+    (update :ops conj (fn [el] `(set! (.-_$owner ~(with-meta el {:tag 'js})) (solid.core/get-owner))))))
+
+(defn- has-custom-element? [node]
+  (and (= :element (:type node))
+       (or (custom-element? (:tag node)) (some has-custom-element? (:children node)))))
+
 (defn- parse-element [env tag args]
   (let [tag-info (parse-tag tag)
         [attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])
         _ (when (map? (first args)) (lint/lint-element-attrs! tag attrs env))
-        {:keys [html ops ssr ssr-html content]} (claim-attrs (:name tag-info) attrs (compile-attrs tag-info attrs))]
+        {:keys [html ops ssr ssr-html content]} (->> (compile-attrs tag-info attrs)
+                                                     (claim-attrs (:name tag-info) attrs)
+                                                     (custom-element-attrs (:name tag-info)))]
     {:type :element
      :tag (:name tag-info)
      :attrs html
@@ -404,7 +421,9 @@
 (defn- client-form [node hydratable?]
   (let [svg? (and (svg-elements (:tag node)) (not= "svg" (:tag node)))
         html (cond->> (node-html node hydratable?) svg? (format "<svg>%s</svg>"))
-        template `(solid.core/-template ~html ~(when svg? 2))
+        ;; Flag 1 imports the clone into the document, which upgrades custom elements at once
+        flag (cond svg? 2 (has-custom-element? node) 1)
+        template `(solid.core/-template ~html ~flag)
         el (gensym "el")
         {:keys [bindings ops inserts effects]} (emit-node node el hydratable?)
         events? (some (partial form-head? 'solid.core/-event!) ops)]

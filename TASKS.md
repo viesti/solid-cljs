@@ -80,6 +80,10 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
 - Component names and locations: done. `$` passes `"<ns>/<name>"` and `"<ns>:<line>:<col>"` to
   `createComponent` behind `goog.DEBUG`, built with an explicit `{:tag 'boolean}` because
   syntax-quote qualifies a `^boolean` hint. Test: test/vitest/devnames.cljs.
+- Custom elements: done. Templates containing a hyphenated tag clone with `importNode`
+  (template flag 1), which upgrades them at once, and each custom element gets `_$owner`, as
+  Solid's compiler does. Attributes stay attributes, as in Solid 2. Test:
+  test/vitest/custom_elements.cljs.
 - Found while checking release output: the benchmark bundle had grown to 290 kB because Closure
   aliased the `solid-js` module object in `s/signal`, which stops Vite from tree-shaking it.
   Runtime functions now bind computed arguments before calling Solid, the bundle is back to
