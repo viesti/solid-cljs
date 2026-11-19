@@ -51,7 +51,18 @@ shadow-cljs compiles the ClojureScript to ES modules and leaves npm imports to V
 ```
 
 Load `/js/main.js` with `<script type="module">`, and run `shadow-cljs watch app` beside
-`vite public`. The `example` script in package.json does both.
+`vite`. The `example` script in package.json does both. Keep Vite from watching the
+`:output-dir`, so that shadow-cljs hot reloads changes instead of Vite reloading the page:
+
+```js
+// vite.config.mjs
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  root: 'public',
+  server: { watch: { ignored: ['**/js/**'] } },
+});
+```
 
 #### Clojurific
 

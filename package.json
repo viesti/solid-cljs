@@ -3,8 +3,8 @@
   "scripts": {
     "test": "shadow-cljs compile test && node -C browser out/test.js",
     "test:watch": "shadow-cljs watch test",
-    "example": "shadow-cljs watch app & vite public --port 3000",
-    "release": "shadow-cljs release app && vite build public --outDir ../out/site --emptyOutDir",
+    "example": "shadow-cljs watch app & vite",
+    "release": "shadow-cljs release app && vite build",
     "vitest": "shadow-cljs compile vitest && vitest run --browser=chromium",
     "vitest:watch": "shadow-cljs watch vitest",
     "build-report": "shadow-cljs run shadow.cljs.build-report app public/report.html"
