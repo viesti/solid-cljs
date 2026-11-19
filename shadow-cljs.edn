@@ -1,6 +1,10 @@
 {:source-paths ["src" "test" "dev"]
  :dependencies [[applied-science/js-interop "0.4.2"]]
- :builds {:app {:target :esm
+ :builds {:bench {:target :esm
+                  :output-dir "public/bench-js"
+                  :js-options {:js-provider :import}
+                  :modules {:bench {:init-fn bench.core/init}}}
+          :app {:target :esm
                 :output-dir "public/js"
                 :asset-path "/js"
                 ;; Vite bundles npm packages, since Closure rejects the dynamic

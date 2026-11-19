@@ -29,19 +29,22 @@
   - :ref attribute since it's handled specially by compile-directives
   - :style attribute since it has special map handling with its own reactivity
   - :class attribute since it has special map handling with its own reactivity
-  - Literal values (strings, numbers, keywords, nil, booleans)"
+  - Literal values (strings, numbers, keywords, nil, booleans), except for directives,
+    which always receive an accessor"
   [attrs]
   (if (map? attrs)
     (reduce-kv
       (fn [m k v]
         (let [k-name (if (keyword? k) (name k) (str k))]
           (assoc m k
-                 (if (or (str/starts-with? k-name "on-")
+                 (cond
+                   (symbol? k) `(fn [] ~v)
+                   (or (str/starts-with? k-name "on-")
                          (= k :ref)
                          (= k :style)
                          (= k :class))
                    v  ; Don't wrap these - they have special handling
-                   (wrap-reactive v)))))
+                   :else (wrap-reactive v)))))
       {}
       attrs)
     attrs))

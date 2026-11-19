@@ -179,6 +179,22 @@ Functions and macros below are a part of `solid.core` namespace:
 ($ button {:on-click #(prn :pressed)} "press")
 ```
 
+Elements with keyword tags compile to templates, as Solid's JSX compiler does. The macro
+collects the static HTML of a tree of nested `$` forms, which Solid parses once and clones for
+each instance, and generates code that binds only the dynamic attributes and children:
+
+```clojure
+($ :div {:class "card"}
+   ($ :span @count)
+   ($ :button {:on-click inc} "+"))
+;; parses <div class="card"><span></span><button>+</button></div> once,
+;; then inserts @count into the span and attaches the click handler
+```
+
+Components, and elements whose tags are not literal keywords, go through Solid's runtime
+hyperscript. `$h` creates any element that way, which helps when comparing the two:
+`yarn bench` measures both in a production build.
+
 ### Attributes
 
 The `:class` attribute supports multiple formats:

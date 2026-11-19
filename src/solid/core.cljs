@@ -32,6 +32,58 @@
            (set! (.-solid-cljs-element ^js el) true)
            el))
 
+;; Runtime of the templates that the `$` macro compiles, see solid.template
+
+(defonce ^:private templates (js/Map.))
+
+(defn -template
+  "Returns the cached Solid template of `html`, which parses `html` on first use."
+  [html flag]
+  (let [k (str flag html)]
+    (or (.get templates k)
+        (let [t (sw/template html flag)]
+          (.set templates k t)
+          t))))
+
+(defn -compiled
+  "Marks `f`, which creates an element, as an element created with `$`."
+  [f]
+  (set! (.-solid-cljs-element ^js f) true)
+  f)
+
+(defn -insert
+  ([parent accessor]
+   (sw/insert parent accessor))
+  ([parent accessor marker]
+   (sw/insert parent accessor marker)))
+
+(defn -effect [compute apply]
+  (sw/effect compute apply))
+
+(defn -event! [el event-name handler delegate?]
+  (when handler
+    (sw/addEvent el event-name handler delegate?)
+    (when delegate? (sw/delegateEvents #js [event-name])))
+  js/undefined)
+
+(defn -attr! [el attr-name v prev]
+  (when-not (identical? v prev)
+    (sw/setAttribute el attr-name (if (keyword? v) (name v) v)))
+  js/undefined)
+
+(defn -class! [el v prev]
+  (sw/className el v prev)
+  js/undefined)
+
+(defn -style! [el v prev]
+  (sw/style el v prev)
+  js/undefined)
+
+(defn -prop! [el prop v prev]
+  (when-not (identical? v prev)
+    (aset el prop (if (and (nil? v) (= "value" prop)) "" v)))
+  js/undefined)
+
 (defn -wrap [value]
       (reify
        IDeref

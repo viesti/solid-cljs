@@ -1,4 +1,5 @@
-(ns solid.compiler)
+(ns solid.compiler
+  (:require [solid.css :as css]))
 
 (declare convert-style-prop-value)
 
@@ -17,16 +18,6 @@
     (coll? x) (clj->js x)
     :else (clj->js x)))
 
-(def unit-less-css-props
-  #{"animation-iteration-count" "aspect-ratio" "border-image-outset" "border-image-slice"
-    "border-image-width" "box-flex" "box-flex-group" "box-ordinal-group" "column-count"
-    "columns" "flex" "flex-grow" "flex-positive" "flex-shrink" "flex-negative" "flex-order"
-    "grid-area" "grid-row" "grid-row-end" "grid-row-span" "grid-row-start" "grid-column"
-    "grid-column-end" "grid-column-span" "grid-column-start" "font-weight" "line-clamp"
-    "line-height" "opacity" "order" "orphans" "tab-size" "widows" "z-index" "zoom"
-    "fill-opacity" "flood-opacity" "stop-opacity" "stroke-dasharray" "stroke-dashoffset"
-    "stroke-miterlimit" "stroke-opacity" "stroke-width"})
-
 (defn numeric-style
   "Appends `px` to the numeric values of the style object `style` whose
   property takes a length, mutating and returning `style`."
@@ -36,7 +27,7 @@
       (let [v (aget style key)]
         (when (and (number? v)
                    (not= 0 v)
-                   (not (contains? unit-less-css-props key)))
+                   (not (contains? css/unit-less-props key)))
           (aset style key (str v "px"))))))
   style)
 

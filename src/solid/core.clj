@@ -2,7 +2,8 @@
     (:refer-clojure :exclude [if when for cond case try if-let when-let if-some when-some or some-> some->>])
     (:require [clojure.core :as core]
               [solid.compiler :as sc]
-              [solid.lint :as lint]))
+              [solid.lint :as lint]
+              [solid.template :as tpl]))
 
 (defn- literal?
        "Returns true if the expression is a compile-time literal."
@@ -79,19 +80,37 @@
             props)
            props))
 
-(defmacro $ [tag & args]
-          (if (keyword? tag)
-              (if (= tag :<>)
-                  `(cljs.core/array ~@(wrap-children args))
-                  (if (map? (first args))
-                      (let [[attrs & children] (sc/compile-attrs args)]
-                           (lint/lint-element-attrs! tag (first args) &env)
-                           `(create-element ~(name tag) ~attrs ~@(wrap-children children)))
-                      `(create-element ~(name tag) nil ~@(wrap-children args))))
-              (let [[attrs & children] args]
-                   (if (map? attrs)
-                       `(create-element ~tag (cljs.core/js-obj "props" ~(wrap-component-props attrs)) ~@(wrap-children children))
-                       `(create-element ~tag ~@(wrap-children args))))))
+(defn- h-form
+  "Returns the form that creates an element or component through Solid's runtime
+  hyperscript, `h`."
+  [env tag args]
+  (if (keyword? tag)
+    (if (map? (first args))
+      (let [[attrs & children] (sc/compile-attrs args)]
+        (lint/lint-element-attrs! tag (first args) env)
+        `(create-element ~(name tag) ~attrs ~@(wrap-children children)))
+      `(create-element ~(name tag) nil ~@(wrap-children args)))
+    (let [[attrs & children] args]
+      (if (map? attrs)
+        `(create-element ~tag (cljs.core/js-obj "props" ~(wrap-component-props attrs)) ~@(wrap-children children))
+        `(create-element ~tag ~@(wrap-children args))))))
+
+(defmacro $
+  "Creates an element or a component. Elements with keyword tags compile to templates
+  whose static HTML is parsed once and cloned."
+  [tag & args]
+  (core/cond
+    (= tag :<>) `(cljs.core/array ~@(wrap-children args))
+    (tpl/compilable? tag args) (tpl/compile-element &env tag args)
+    :else (h-form &env tag args)))
+
+(defmacro $h
+  "Creates an element or a component like `$`, through Solid's runtime hyperscript
+  instead of a compiled template."
+  [tag & args]
+  (if (= tag :<>)
+    `(cljs.core/array ~@(wrap-children args))
+    (h-form &env tag args)))
 
 (defmacro if
           ([test then]
