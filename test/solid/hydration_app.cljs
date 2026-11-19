@@ -27,7 +27,7 @@
   ($ :article ($ :h2 title) children))
 
 (defui async-greeting []
-  (let [text (s/memo #(js/Promise. (fn [resolve] (js/setTimeout (fn [] (resolve "Moi")) 10))))]
+  (let [text (s/memo #(js/Promise. (fn [resolve] (js/setTimeout (fn [] (resolve "Moi")) 60))))]
     ($ :section#async
        (s/loading ($ :p "loading") ($ :p (text) ", world")))))
 

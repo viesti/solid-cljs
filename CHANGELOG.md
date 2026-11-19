@@ -26,8 +26,8 @@ app needs.
   `s/render-to-stream`, and hydration with `s/hydrate`, `s/hydration-script` and the compiler
   options `:solid/render` and `:solid/hydratable`.
 - Async: `s/loading` options, `s/pending?`, `s/latest`, `s/refresh`, `s/affects`, `s/resolve`.
-- Actions and optimistic updates: `s/action` with `s/yield`, `s/optimistic`,
-  `s/optimistic-store`.
+- Actions and optimistic updates: `s/action` with `s/yield` (in let bindings, branches and
+  call arguments), `s/optimistic`, `s/optimistic-store`.
 - Stores: maps as initial data, `s/sget`, `s/sset!`, `s/supdate!`, `s/replacement`,
   `s/projection`, `s/reconcile!`, `s/snapshot`, `s/store->clj`, `s/deep`.
 - Control flow: `:fallback` and `:key` for `s/for`, `s/repeat`, `s/reveal`.
@@ -36,6 +36,7 @@ app needs.
   `s/from`, `s/map-array`, `s/use-head`, `s/safe-error`, `s/client-only`, `s/no-hydration`,
   `s/hydration` and the request helpers.
 - `s/lazy` accepts a promise of a component, as from `shadow.lazy/load`.
+- `$h` renders on the server.
 - `solid.squint`, helpers for Squint apps that use Solid's own JSX compiler.
 - A clj-kondo configuration, and compiler warnings for writes in component bodies and for
   destructured props that are read once.

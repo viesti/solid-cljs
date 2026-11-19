@@ -1,2 +1,3 @@
 ;; Lints this repository with the configuration that solid-cljs exports to its users
-{:config-paths ["../resources/clj-kondo.exports/com.github.roman01la/solid-cljs"]}
+{:config-paths ["../resources/clj-kondo.exports/com.github.roman01la/solid-cljs"]
+ :lint-as {applied-science.js-interop/let clojure.core/let}}

@@ -207,7 +207,8 @@ each instance, and generates code that binds only the dynamic attributes and chi
 Components compile to `createComponent` calls, as in Solid's compiled JSX. Elements whose tags
 are not literal keywords go through Solid's runtime hyperscript, `h`. `$h` creates any element or
 component that way, which helps when comparing the two: `yarn bench` measures both in a
-production build.
+production build. On the server, where hyperscript cannot create DOM nodes, `$h` renders
+elements as `$` does, and it does not hydrate.
 
 ### Component props
 
@@ -428,12 +429,23 @@ Coordinating when sibling `s/loading` boundaries reveal their content via `<Reve
 again, `s/affects` declares that work in flight will change a memo or store, and `s/resolve`
 returns a promise of the first settled value of an expression.
 
-Mutations via Solid's `action`. An
-action runs in a transition and returns a promise of its result. A top-level `(s/yield expr)`
-waits for a promise while the transition holds, and `(s/yield [result expr])` binds the settled
-value for the forms that follow. Solid's actions are generator functions, which
-ClojureScript does not have, so `s/action` builds the steps from its top-level `s/yield` forms,
-and `s/yield` is only valid there.
+Mutations via Solid's `action`. An action runs in a transition and returns a promise of its
+result. `(s/yield expr)` waits for a promise while the transition holds and returns its settled
+value. It works in `let` bindings, `do`, `if`, `when`, `if-not`, `when-not` and the arguments of
+function calls, and a body form `(s/yield [result expr])` binds the value for the forms that
+follow. Solid's actions are generator functions, which ClojureScript does not have, so
+`s/action` rewrites its body into the steps of one. `s/yield` inside another macro or special
+form, such as `and`, `loop` or `try`, or inside a nested function, is a compile error.
+
+```clojure
+(def save-profile
+  (s/action [profile]
+    (let [saved (s/yield (api/save profile))]
+      (when (:avatar-changed? saved)
+        (s/yield (api/refresh-avatar (:id saved))))
+      (s/refresh user)
+      saved)))
+```
 
 `s/optimistic` creates an atom-like optimistic signal and `s/optimistic-store` an optimistic
 store: a write inside an action shows at once and reverts when the action settles, by which
@@ -664,7 +676,8 @@ The client hydrates the same app into the same container:
 ```
 
 Hydratable client code also renders normally with `s/render`, so a build can compile it for
-both. Without `:solid/hydratable`, `s/render` appends to a container that is not empty, so clear
+both. Streamed HTML hydrates once its content has arrived and been revealed, and `s/reveal`
+coordinates the reveal of streamed `s/loading` boundaries on the server as in the browser. Without `:solid/hydratable`, `s/render` appends to a container that is not empty, so clear
 the server HTML from it before rendering.
 
 ## Code splitting

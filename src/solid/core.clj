@@ -148,7 +148,7 @@
                        (< 1 (count children))
                        (conj [:children `(cljs.core/array
                                            ~@(core/for [c children]
-                                               (if (static-prop? c) c `(fn [] (solid.core/-resolve ~c)))))]))
+                                               (if (static-prop? c) c `(solid.core/-memo-child (fn [] ~c)))))]))
              getters (remove (fn [[_ v]] (static-prop? v)) entries)
              statics (filter (fn [[_ v]] (static-prop? v)) entries)]
             (cond->> `(solid.core/-props-obj
@@ -188,11 +188,17 @@
 
 (defmacro $h
   "Creates an element or a component like `$`, through Solid's runtime hyperscript
-  instead of a compiled template."
+  instead of a compiled template. On the server, where hyperscript cannot create DOM nodes,
+  elements render through the server output of `$` and components through `createComponent`."
   [tag & args]
   (if (= tag :<>)
     `(cljs.core/array ~@(wrap-children args))
-    (h-form &env tag args)))
+    (let [server (if (keyword? tag) (tpl/server-element &env tag args) (component-form tag args))
+          client (h-form &env tag args)]
+      (core/case (tpl/render-target)
+        :dom client
+        :server server
+        `(if solid.core/server? ~server ~client)))))
 
 (defmacro if
           ([test then]
@@ -521,22 +527,131 @@
             (core/when-let [v (cljs.analyzer/get-expander (first form) env)]
               (= 'solid.core/yield (symbol (str (:ns (meta v))) (str (:name (meta v))))))))
 
-(defn- action-steps
-  "Returns the form that runs `forms` up to their first top-level `s/yield` and returns the
-  yield with the continuation of the forms after it, or the value of the last form."
-  [env forms]
-  (let [[before [y & after]] (split-with #(core/not (yield-form? env %)) forms)]
-    (if y
-      (let [arg (second y)
-            [sym expr] (if (vector? arg) arg [(gensym "_") arg])]
-        `(do ~@before
-             (solid.core/-yield ~expr (fn [~sym] ~(action-steps env after)))))
-      `(do ~@before))))
+(defn- contains-yield?
+  "Returns true if `form` contains an `s/yield` outside nested functions."
+  [env form]
+  (core/cond
+    (yield-form? env form) true
+    (fn-form? form) false
+    (seq? form) (boolean (some #(contains-yield? env %) form))
+    (map? form) (boolean (some #(contains-yield? env %) (concat (keys form) (vals form))))
+    (coll? form) (boolean (some #(contains-yield? env %) form))
+    :else false))
+
+(declare cps cps-body)
+
+(defn- cps-let
+  "Returns code that evaluates the let bindings `bindings` and then `body`, passing the value
+  of `body` to the continuation `k`."
+  [env bindings body k]
+  (if (empty? bindings)
+    (cps-body env body k)
+    (let [[b v & more] bindings]
+      (if (contains-yield? env v)
+        (cps env v `(fn [~b] ~(cps-let env more body k)))
+        `(let [~b ~v] ~(cps-let env more body k))))))
+
+(defn- cps-args
+  "Returns code that evaluates `args` in order, then calls `head` with their values and passes
+  the result to the continuation `k`."
+  [env head args vals k]
+  (if (empty? args)
+    `(~k (~head ~@vals))
+    (let [v (gensym "arg")]
+      (cps env (first args) `(fn [~v] ~(cps-args env head (rest args) (conj vals v) k))))))
+
+(defn- with-continuation
+  "Binds the continuation form `k` to a name and returns the code `f` builds from that name, so
+  that a continuation used in several branches is written once, outside their bindings."
+  [k f]
+  (if (symbol? k)
+    (f k)
+    (let [sym (gensym "k")]
+      `(let [~sym ~k] ~(f sym)))))
+
+(defn- function-head?
+  "Returns true if a call of `head` evaluates all its arguments: `head` is not a macro, or is
+  one of the macros that ClojureScript inlines a function of the same name with, like
+  `vector` and `+`."
+  [env head]
+  (core/if-let [v (cljs.analyzer/get-expander head env)]
+    (core/and (= "cljs.core" (str (:ns (meta v))))
+              (contains? (get-in @cljs.env/*compiler* [:cljs.analyzer/namespaces 'cljs.core :defs])
+                         (symbol (name head))))
+    true))
+
+(defn- cps
+  "Returns code that evaluates `form` and passes its value to the continuation `k`, waiting
+  for each `s/yield` inside it. Supports `s/yield` in let bindings, `do`, `if`, `when`,
+  `if-not`, `when-not` and the arguments of function calls."
+  [env form k]
+  (core/cond
+    (core/not (contains-yield? env form))
+    `(~k ~form)
+
+    (yield-form? env form)
+    (let [arg (second form)]
+      (core/when (vector? arg)
+        (throw (ex-info "(s/yield [name expr]) is only valid among the body forms of s/action or of a let in it; use (let [name (s/yield expr)] ...) inside other forms" {})))
+      (with-continuation k
+        (fn [k]
+          (if (contains-yield? env arg)
+            (cps env arg `(fn [p#] (solid.core/-yield p# ~k)))
+            `(solid.core/-yield ~arg ~k)))))
+
+    :else
+    (let [[head & args] form]
+      (core/case (core/when (symbol? head) (name head))
+        "do" (cps-body env args k)
+        ("let" "let*") (with-continuation k #(cps-let env (first args) (rest args) %))
+        ("if" "if-not")
+        (let [[c a b] args
+              [a b] (if (= "if-not" (name head)) [b a] [a b])]
+          (with-continuation k
+            (fn [k]
+              (if (contains-yield? env c)
+                (cps env c `(fn [c#] (if c# ~(cps env a k) ~(cps env b k))))
+                `(if ~c ~(cps env a k) ~(cps env b k))))))
+        "when" (cps env `(if ~(first args) (do ~@(rest args)) nil) k)
+        "when-not" (cps env `(if ~(first args) nil (do ~@(rest args))) k)
+        (if (core/and (symbol? head)
+                      (function-head? env head)
+                      (core/not (#{'loop* 'try 'letfn* 'case* 'recur 'quote 'set! 'new 'throw} head)))
+          (with-continuation k #(cps-args env head args [] %))
+          (throw (ex-info (str "s/yield inside `" (pr-str head) "` is not supported in s/action. "
+                               "It works in let bindings, do, if, when, if-not, when-not and "
+                               "function call arguments.")
+                          {:form form})))))))
+
+(defn- cps-body
+  "Returns code that evaluates `forms` in order and passes the value of the last one to the
+  continuation `k`. A body form `(s/yield [name expr])` binds the settled value of `expr` to
+  `name` in the forms after it."
+  [env forms k]
+  (let [[f & more] forms]
+    (core/cond
+      (empty? forms) `(~k nil)
+
+      (core/and (yield-form? env f) (vector? (second f)))
+      (let [[name expr] (second f)]
+        (with-continuation k
+          (fn [k]
+            (cps env expr `(fn [p#] (solid.core/-yield p# (fn [~name] ~(cps-body env more k))))))))
+
+      (empty? more) (cps env f k)
+
+      (contains-yield? env f)
+      (with-continuation `(fn [_#] ~(cps-body env more k))
+        #(cps env f %))
+
+      :else `(do ~f ~(cps-body env more k)))))
 
 (defmacro action
   "Creates an action: a function that runs `body` in a transition and returns a promise of
-  its result. A top-level `(s/yield expr)` waits for the promise `expr` to settle while the
-  transition holds, and `(s/yield [result expr])` binds its value for the forms after it.
+  its result. `(s/yield expr)` waits for the promise `expr` to settle while the transition
+  holds and returns its value. It works in let bindings, `do`, `if`, `when`, `if-not`,
+  `when-not` and function call arguments, and as a body form `(s/yield [result expr])` binds
+  the value for the forms after it.
   Writes to optimistic signals and stores show at once and revert when the action settles.
   ```clojure
   (def add-todo
@@ -549,9 +664,9 @@
   [params & body]
   `(solid.core/-action
      (fn ~params
-       (solid.core/-action-iterator (fn [_#] ~(action-steps &env body))))))
+       (solid.core/-action-iterator (fn [_#] ~(cps-body &env body `cljs.core/identity))))))
 
 (defmacro yield
-  "Waits for a promise in `s/action`. Only valid as a top-level form of an action's body."
+  "Waits for a promise in `s/action`, and returns its settled value."
   [& _]
-  (throw (ex-info "s/yield is only valid as a top-level form of s/action" {})))
+  (throw (ex-info "s/yield is only valid inside s/action, outside nested functions" {})))

@@ -1,5 +1,5 @@
 (ns solid.ssr-test
-  (:require [cljs.test :refer [deftest testing is async]]
+  (:require [cljs.test :refer [deftest is async]]
             [solid.core :as s :refer [$ defui]]))
 
 (defn- html [root]
@@ -103,3 +103,42 @@
                                (is (re-find #"late" (apply str @chunks)) "a later chunk has the content")
                                (done))}]
       (s/pipe (s/render-to-stream slow-view) writable))))
+
+(defui h-card [{:keys [title]}]
+  (s/$h :section (s/$h :h2 title) (s/$h :p {:class :body} "text")))
+
+(deftest hyperscript-on-the-server
+  (is (= "<div><section><h2>T</h2><p class=\"body\">text</p></section></div>"
+         (html (s/$h :div (s/$h h-card {:title "T"}))))))
+
+(defn- delayed [v ms]
+  (js/Promise. (fn [resolve] (js/setTimeout #(resolve v) ms))))
+
+(defui revealed []
+  (let [a (s/memo #(delayed "A-content" 40))
+        b (s/memo #(delayed "B-content" 5))]
+    (s/reveal {:order :together}
+      (s/loading ($ :p "A-wait") ($ :p (a)))
+      (s/loading ($ :p "B-wait") ($ :p (b))))))
+
+(defn- stream-chunks [root on-end]
+  (let [chunks (atom [])]
+    (s/pipe (s/render-to-stream root)
+            #js {:write (fn [chunk] (swap! chunks conj (str chunk)) true)
+                 :end #(on-end @chunks)})))
+
+(deftest reveal-together-when-streaming
+  (async done
+    (stream-chunks
+      revealed
+      (fn [chunks]
+        (let [index-of (fn [re] (first (keep-indexed #(when (re-find re %2) %1) chunks)))
+              b-content (index-of #"B-content")
+              a-content (index-of #"A-content")]
+          (is (re-find #"A-wait" (first chunks)) "the shell has the first fallback")
+          (is (re-find #"B-wait" (first chunks)) "the shell has the second fallback")
+          (is (< b-content a-content) "the faster content streams first")
+          (is (not (re-find #"\$df\(" (nth chunks b-content))) "but is not revealed on its own")
+          (is (re-find #"\$dfj\(\[\"\d+\",\"\d+\"\]\)" (nth chunks a-content))
+              "both boundaries reveal together once the slower one is ready"))
+        (done)))))

@@ -3,7 +3,7 @@
   (:require
     [applied-science.js-interop :as j]
     [solid.core :as s :refer [$ defui]]
-    ["vitest/browser" :refer [page userEvent]]
+    ["vitest/browser" :refer [page]]
     ["@solidjs/testing-library" :as st :refer [render]]
     ["vitest" :refer [expect test]]))
 

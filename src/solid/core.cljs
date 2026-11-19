@@ -358,6 +358,18 @@
         (array? x) (.map x -resolve)
         :else x))
 
+(defn -memo-child
+      "Creates the child that `f` returns in a memo, owned by the component that reads its
+  children, as Solid's compiled JSX does with dynamic children. Components and boundaries in
+  the child then see that component's context."
+      [f]
+      (solid/createMemo #(-resolve (f))))
+
+(defn- memo-children
+      "Returns the children of a control-flow component, each created in a memo by the reader."
+      [children]
+      (into-array (map #(if (fn? %) (-memo-child %) %) children)))
+
 (defn- define-getter! [o k f]
       (js/Object.defineProperty o k #js {:get f :enumerable true :configurable true}))
 
@@ -414,7 +426,7 @@
             {"children" (fn [i] (-resolve (body i)))}))
 
 (defn -reveal [opts & children]
-      (flow solid/Reveal {"children" #(into-array children)} opts))
+      (flow solid/Reveal {"children" #(memo-children children)} opts))
 
 (defn -switch [else pairs]
       (flow solid/Switch
@@ -548,12 +560,12 @@
                             v)))))
 
 (defn -error-boundary [fallback & children]
-      (flow solid/Errored {"children" #(into-array children)}
+      (flow solid/Errored {"children" #(memo-children children)}
             {"fallback" (fn [err reset] (-resolve (fallback err reset)))}))
 
 (defn -loading [fallback on & children]
       (flow solid/Loading
-            (cond-> {"fallback" fallback "children" #(into-array children)} on (assoc "on" on))
+            (cond-> {"fallback" fallback "children" #(memo-children children)} on (assoc "on" on))
             {}))
 
 (defn -lazy

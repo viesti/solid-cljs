@@ -414,3 +414,8 @@
       :dom (client-form node hy?)
       :server (server-form node hy?)
       `(if solid.core/server? ~(server-form node hy?) ~(client-form node hy?)))))
+
+(defn server-element
+  "Returns the form that renders the element of a `$` form with a keyword tag to server HTML."
+  [env tag args]
+  (server-form (parse-element env tag args) (hydratable?)))

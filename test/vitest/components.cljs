@@ -118,3 +118,16 @@
       (reset! on true)
       (s/flush)
       (.. (expect (.-textContent c)) (toBe "on")))))
+
+(def theme (s/create-context "light"))
+
+(defui themed []
+  ($ :i (s/use-context theme)))
+
+(test
+  "A context provider's children see its value, also when there are several"
+  (fn []
+    (let [c (mount ($ :div
+                      ($ theme {:value "dark"} ($ themed) ($ themed))
+                      ($ themed)))]
+      (.. (expect (.-textContent c)) (toBe "darkdarklight")))))

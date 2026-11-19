@@ -238,3 +238,40 @@
                              ($ from-module {:label "b"}))))]
       (-> (wait 20)
           (.then (fn [] (.. (expect (.-textContent c)) (toBe "ab"))))))))
+
+(test
+  "s/yield works in let bindings, branches, when and call arguments"
+  (fn []
+    (let [log (atom [])
+          step (fn [x] (js/Promise. (fn [resolve] (js/setTimeout #(do (swap! log conj x) (resolve x)) 5))))
+          act (s/action [flag]
+                (let [a (s/yield (step :a))
+                      b (+ 1 (s/yield (step 1)))]
+                  (if flag
+                    (swap! log conj (s/yield (step :then)))
+                    (swap! log conj (s/yield (step :else))))
+                  (when flag
+                    (s/yield (step :when)))
+                  (swap! log conj :after-if)
+                  (vector a b (s/yield (step :x)) (s/yield (step :y)))))
+          act-not (s/action []
+                    (if-not (s/yield (step false)) :no :yes))
+          failing (s/action []
+                    (let [x (s/yield (step :before))]
+                      (let [y (s/yield (js/Promise.reject (js/Error. (str "fail " (name x)))))]
+                        y)))]
+      (-> (act true)
+          (.then (fn [r]
+                   (.. (expect (= [:a 2 :x :y] r)) (toBe true))
+                   (.. (expect (= [:a 1 :then :then :when :after-if :x :y] @log)) (toBe true))
+                   (reset! log [])
+                   (act false)))
+          (.then (fn [r]
+                   (.. (expect (= [:a 2 :x :y] r)) (toBe true))
+                   (.. (expect (= [:a 1 :else :else :after-if :x :y] @log)) (toBe true))
+                   (act-not)))
+          (.then (fn [r]
+                   (.. (expect (= :no r)) (toBe true))
+                   (failing)))
+          (.then (fn [_] (throw (js/Error. "should have rejected")))
+                 (fn [e] (.. (expect (.-message e)) (toBe "fail before"))))))))

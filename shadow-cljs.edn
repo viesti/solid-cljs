@@ -25,7 +25,7 @@
           ;; The browser tests again, compiled for hydration, with the hydration test
           :vitest-hydratable {:target :esm-files
                               :output-dir "out/vitest-hydratable"
-                              :ns-regexp "^(vitest\\.|hydration\\.client-test$)"
+                              :ns-regexp "^(vitest\\.|hydration\\..*-test$)"
                               :compiler-options {:solid/hydratable true}}
           :test {:target :node-script
                  :main solid.test-runner/main
