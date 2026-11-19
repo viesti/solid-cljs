@@ -4,6 +4,7 @@
   the dynamic attributes and children of each clone, as Solid's JSX compiler does."
     (:require [clojure.string :as str]
               [cljs.analyzer :as ana]
+              [cljs.env]
               [solid.compiler :as sc]
               [solid.css :as css]
               [solid.lint :as lint]))
@@ -66,13 +67,9 @@
                       (= 'solid.core/$ (symbol (str (:ns (meta v))) (str (:name (meta v))))))))
 
 (defn compilable?
-      "Returns true if a `$` form with this tag and args compiles to a template."
-      [tag args]
-      (and (keyword? tag)
-           (not= tag :<>)
-           (let [{:keys [id]} (parse-tag tag)
-                 attrs (first args)]
-                (not (and id (map? attrs) (contains? attrs :id))))))
+  "Returns true if a `$` form with this tag compiles to a template."
+  [tag _args]
+  (and (keyword? tag) (not= tag :<>)))
 
 (defn- event-name
        "Returns the DOM event name of an `:on-*` attribute, or nil."
@@ -120,74 +117,102 @@
         (map? v) (for [[k on] v :when on] (if (keyword? k) (name k) (str k)))
         :else [(str v)]))
 
+(def ^:private server-attributes
+  "Attribute names under which DOM properties are rendered as HTML on the server."
+  {"value" "value" "checked" "checked" "selected" "selected" "muted" "muted"
+   "defaultValue" "value" "defaultChecked" "checked" "defaultSelected" "selected"
+   "defaultMuted" "muted"})
+
 (defn- compile-attrs
-       "Splits an element's attributes into static HTML attributes and operations on the
-  element, each a function of the element's symbol."
-       [tag-info attrs]
-       (let [{:keys [id classes]} tag-info
-             class-v (get attrs :class)
-             static-class? (or (not (contains? attrs :class)) (class-literal? class-v))]
-            (reduce-kv
-             (fn [acc k v]
-                 (let [n (if (keyword? k) (name k) (str k))]
-                      (cond
-                       (symbol? k)
-                       (update acc :ops conj (fn [el] `(~k ~el (fn [] ~v))))
+  "Splits an element's attributes into static HTML attributes, operations on the element for
+  the client (each a function of the element's symbol), forms that render attributes on the
+  server, and content that replaces the element's children on the server."
+  [tag-info attrs]
+  (let [{:keys [id classes]} tag-info
+        class-v (get attrs :class)
+        static-class? (or (not (contains? attrs :class)) (class-literal? class-v))
+        dynamic-class (if (seq classes) [(str/join " " classes) class-v] class-v)]
+    (reduce-kv
+      (fn [acc k v]
+        (let [n (if (keyword? k) (name k) (str k))]
+          (cond
+            (symbol? k)
+            (update acc :ops conj (fn [el] `(~k ~el (fn [] ~v))))
 
-                       (= k :ref)
-                       (update acc :ops conj (fn [el] `(when-let [r# ~v] (r# ~el))))
+            (= k :ref)
+            (update acc :ops conj (fn [el] `(when-let [r# ~v] (r# ~el))))
 
-                       (event-name n)
-                       (let [ev (event-name n)]
-                            (update acc :ops conj (fn [el] `(solid.core/-event! ~el ~ev ~v ~(contains? delegated-events ev)))))
+            (event-name n)
+            (let [ev (event-name n)]
+              (update acc :ops conj (fn [el] `(solid.core/-event! ~el ~ev ~v ~(contains? delegated-events ev)))))
 
-                       (= k :class)
-                       acc
+            (#{:class :id} k)
+            acc
 
-                       (= k :style)
-                       (cond
-                        (nil? v) acc
-                        (string? v) (update acc :html conj (literal-attr "style" v))
-                        (and (map? v) (every? sc/literal? (vals v)))
-                        (let [text (style-text v)]
-                             (cond-> acc (seq text) (update :html conj (literal-attr "style" text))))
-                        (map? v)
-                        (update acc :ops conj (fn [el]
-                                                  `(solid.core/-effect (fn [] (solid.compiler/numeric-style ~(sc/to-js v)))
-                                                                       (fn [v# p#] (solid.core/-style! ~el v# p#)))))
-                        :else
-                        (update acc :ops conj (fn [el]
-                                                  `(solid.core/-effect (fn [] (solid.compiler/interpret-style-map ~v))
-                                                                       (fn [v# p#] (solid.core/-style! ~el v# p#))))))
+            (= k :style)
+            (cond
+              (nil? v) acc
+              (string? v) (update acc :html conj (literal-attr "style" v))
+              (and (map? v) (every? sc/literal? (vals v)))
+              (let [text (style-text v)]
+                (cond-> acc (seq text) (update :html conj (literal-attr "style" text))))
+              :else
+              (let [compute (if (map? v)
+                              `(solid.compiler/numeric-style ~(sc/to-js v))
+                              `(solid.compiler/interpret-style-map ~v))]
+                (-> acc
+                    (update :ops conj (fn [el]
+                                        `(solid.core/-effect (fn [] ~compute)
+                                                             (fn [v# p#] (solid.core/-style! ~el v# p#)))))
+                    (update :ssr conj `(solid.core/-ssr-style ~compute)))))
 
-                       (dom-properties n)
-                       (let [prop (dom-properties n)]
-                            (update acc :ops conj
-                                    (if (sc/literal? v)
-                                        (fn [el] `(solid.core/-prop! ~el ~prop ~v nil))
-                                        (fn [el] `(solid.core/-effect (fn [] ~v)
-                                                                      (fn [v# p#] (solid.core/-prop! ~el ~prop v# p#)))))))
+            (dom-properties n)
+            (let [prop (dom-properties n)
+                  acc (update acc :ops conj
+                              (if (sc/literal? v)
+                                (fn [el] `(solid.core/-prop! ~el ~prop ~v nil))
+                                (fn [el] `(solid.core/-effect (fn [] ~v)
+                                                              (fn [v# p#] (solid.core/-prop! ~el ~prop v# p#))))))]
+              (case prop
+                "innerHTML" (assoc acc :content {:raw? true :expr v})
+                ("textContent" "innerText") (assoc acc :content {:raw? false :expr v})
+                (let [attr (server-attributes prop)]
+                  (if (sc/literal? v)
+                    (cond-> acc (literal-attr attr v) (update :ssr-html conj (literal-attr attr v)))
+                    (update acc :ssr conj `(solid.core/-ssr-attr ~attr ~v))))))
 
-                       (sc/literal? v)
-                       (if-let [html (literal-attr n v)]
-                               (update acc :html conj html)
-                               acc)
+            (sc/literal? v)
+            (if-let [html (literal-attr n v)]
+              (update acc :html conj html)
+              acc)
 
-                       :else
-                       (update acc :ops conj (fn [el]
-                                                 `(solid.core/-effect (fn [] ~v)
-                                                                      (fn [v# p#] (solid.core/-attr! ~el ~n v# p#))))))))
-             {:html (cond-> []
-                            id (conj (literal-attr "id" id))
-                            (and static-class? (seq (concat classes (class-names class-v))))
-                            (conj (literal-attr "class" (str/join " " (concat classes (class-names class-v))))))
-              :ops (cond-> []
-                           (not static-class?)
-                           (conj (fn [el]
-                                     `(solid.core/-effect (fn [] (solid.compiler/class-value
-                                                                  ~(if (seq classes) [(str/join " " classes) class-v] class-v)))
-                                                          (fn [v# p#] (solid.core/-class! ~el v# p#))))))}
-             (dissoc attrs :class))))
+            :else
+            (-> acc
+                (update :ops conj (fn [el]
+                                    `(solid.core/-effect (fn [] ~v)
+                                                         (fn [v# p#] (solid.core/-attr! ~el ~n v# p#)))))
+                (update :ssr conj `(solid.core/-ssr-attr ~n ~v))))))
+      {:html (cond-> []
+               (contains? attrs :id) (cond-> (sc/literal? (:id attrs)) (conj (literal-attr "id" (:id attrs))))
+               (and id (not (contains? attrs :id))) (conj (literal-attr "id" id))
+               (and static-class? (seq (concat classes (class-names class-v))))
+               (conj (literal-attr "class" (str/join " " (concat classes (class-names class-v))))))
+       :ssr-html []
+       :ssr (cond-> []
+              (and (contains? attrs :id) (not (sc/literal? (:id attrs))))
+              (conj `(solid.core/-ssr-attr "id" ~(:id attrs)))
+              (not static-class?)
+              (conj `(solid.core/-ssr-class ~dynamic-class)))
+       :ops (cond-> []
+              (and (contains? attrs :id) (not (sc/literal? (:id attrs))))
+              (conj (fn [el]
+                      `(solid.core/-effect (fn [] ~(:id attrs))
+                                           (fn [v# p#] (solid.core/-attr! ~el "id" v# p#)))))
+              (not static-class?)
+              (conj (fn [el]
+                      `(solid.core/-effect (fn [] (solid.compiler/class-value ~dynamic-class))
+                                           (fn [v# p#] (solid.core/-class! ~el v# p#))))))}
+      (dissoc attrs :class))))
 
 (declare parse-element)
 
@@ -217,11 +242,14 @@
        (let [tag-info (parse-tag tag)
              [attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])
              _ (when (map? (first args)) (lint/lint-element-attrs! tag attrs env))
-             {:keys [html ops]} (compile-attrs tag-info attrs)]
+             {:keys [html ops ssr ssr-html content]} (compile-attrs tag-info attrs)]
             {:type :element
              :tag (:name tag-info)
              :attrs html
              :ops ops
+             :ssr ssr
+             :ssr-attrs ssr-html
+             :content content
              :children (parse-children env children)}))
 
 (defn- node-html [{:keys [type tag attrs children text only?]}]
@@ -262,19 +290,63 @@
             {:bindings (vec (concat walk (mapcat :bindings child-results)))
              :ops (vec (concat (map #(% el) (:ops node)) (mapcat :ops child-results)))}))
 
+(defn- server-segments
+  "Returns the server HTML of `node` as a sequence of strings and forms whose values are
+  rendered between them."
+  [{:keys [type tag attrs ssr ssr-attrs content children text expr]}]
+  (case type
+    :text [(escape-text text)]
+    :dynamic [`(fn [] (solid.core/-ssr-child ~expr))]
+    :element
+    (concat
+      [(str "<" tag (str/join (map #(str " " %) (concat attrs ssr-attrs))))]
+      ssr
+      [">"]
+      (when-not (void-elements tag)
+        (concat
+          (cond
+            (nil? content) (mapcat server-segments children)
+            (string? (:expr content)) [(if (:raw? content) (:expr content) (escape-text (:expr content)))]
+            (:raw? content) [`(fn [] (solid.core/-ssr-raw ~(:expr content)))]
+            :else [`(fn [] (solid.core/-ssr-child ~(:expr content)))])
+          [(str "</" tag ">")])))))
+
+(defn- server-form [node]
+  (let [[parts values] (reduce (fn [[parts values] seg]
+                                 (if (string? seg)
+                                   [(conj (pop parts) (str (peek parts) seg)) values]
+                                   [(conj parts "") (conj values seg)]))
+                               [[""] []]
+                               (server-segments node))]
+    `(solid.core/-compiled
+       (fn [] (solid.core/-ssr (cljs.core/array ~@parts) ~@values)))))
+
+(defn- client-form [node]
+  (let [svg? (and (svg-elements (:tag node)) (not= "svg" (:tag node)))
+        html (cond->> (node-html node) svg? (format "<svg>%s</svg>"))
+        el (gensym "el")
+        {:keys [bindings ops]} (emit-node node el)]
+    `(solid.core/-compiled
+       (fn []
+         (solid.core/untrack
+           (fn []
+             (let [~el ((solid.core/-template ~html ~(when svg? 2)))
+                   ~@bindings]
+               ~@ops
+               ~el)))))))
+
+(defn render-target
+  "Returns the output the build asks for with the compiler option `:solid/render`: `:dom` for
+  the browser, `:server` for server rendering, or `:both` (the default), which chooses at
+  runtime with Solid's `isServer`."
+  []
+  (get-in @cljs.env/*compiler* [:options :solid/render] :both))
+
 (defn compile-element
-      "Returns the form that creates the element of a `$` form with a keyword tag."
-      [env tag args]
-      (let [node (parse-element env tag args)
-            svg? (and (svg-elements (:tag node)) (not= "svg" (:tag node)))
-            html (cond->> (node-html node) svg? (format "<svg>%s</svg>"))
-            el (gensym "el")
-            {:keys [bindings ops]} (emit-node node el)]
-           `(solid.core/-compiled
-             (fn []
-                 (solid.core/untrack
-                  (fn []
-                      (let [~el ((solid.core/-template ~html ~(when svg? 2)))
-                            ~@bindings]
-                           ~@ops
-                           ~el)))))))
+  "Returns the form that creates the element of a `$` form with a keyword tag."
+  [env tag args]
+  (let [node (parse-element env tag args)]
+    (case (render-target)
+      :dom (client-form node)
+      :server (server-form node)
+      `(if solid.core/server? ~(server-form node) ~(client-form node)))))

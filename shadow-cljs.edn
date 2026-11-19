@@ -3,14 +3,21 @@
  :builds {:bench {:target :esm
                   :output-dir "public/bench-js"
                   :js-options {:js-provider :import}
-                  :modules {:bench {:init-fn bench.core/init}}}
+                  :modules {:bench {:init-fn bench.core/init}}
+                  ;; The benchmark runs in the browser only, so server output is left out
+                  :compiler-options {:solid/render :dom}}
           :app {:target :esm
                 :output-dir "public/js"
                 :asset-path "/js"
                 ;; Vite bundles npm packages, since Closure rejects the dynamic
                 ;; import() in @solidjs/web
                 :js-options {:js-provider :import}
-                :modules {:main {:entries [app.core]}}}
+                :modules {:main {:entries [app.core]}}
+                :compiler-options {:solid/render :dom}}
+          :ssr-test {:target :node-script
+                     :main solid.ssr-test-runner/main
+                     :output-to "out/ssr-test.js"
+                     :compiler-options {:solid/render :server}}
           :test {:target :node-script
                  :main solid.test-runner/main
                  :output-to "out/test.js"}

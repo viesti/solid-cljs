@@ -20,6 +20,36 @@
 
 ;; Runtime of the templates that the `$` macro compiles, see solid.template
 
+;; Server rendering of the same templates, see solid.template/server-form
+
+(declare -resolve)
+
+(defn -ssr [parts & values]
+      (if values
+        (.apply sw/ssr nil (into-array (cons parts values)))
+        (sw/ssr (aget parts 0))))
+
+(defn -ssr-attr [attr-name v]
+      (sw/ssrAttribute attr-name (sw/escape (if (keyword? v) (name v) v) true)))
+
+(defn- ssr-quoted [attr-name v]
+      (if (seq v) (str " " attr-name "=\"" v "\"") ""))
+
+(defn -ssr-class [v]
+      (ssr-quoted "class" (sw/ssrClassName (sc/class-value v))))
+
+(defn -ssr-style [v]
+      (ssr-quoted "style" (sw/ssrStyle v)))
+
+(defn -ssr-child
+      "Returns the escaped server HTML of a dynamic child."
+      [x]
+      (let [x (-resolve x)]
+        (sw/escape (if (keyword? x) (name x) x))))
+
+(defn -ssr-raw [x]
+      (if (nil? x) "" (str x)))
+
 (defonce ^:private templates (js/Map.))
 
 (defn -template
@@ -352,21 +382,41 @@
       [root node]
       (sw/render (if (element? root) root (-component root #js {})) node))
 
-(defn render-to-string [el {:keys [nonce render-id]}]
-      (sw/renderToString (fn [] el) #js {:nonce nonce :renderId render-id}))
+(defn- root-thunk
+      "Returns a function that creates `root`, an element created with `$` or a component."
+      [root]
+      (let [el (if (element? root) root (-component root #js {}))]
+        (fn [] (-resolve el))))
+
+(defn- render-options
+      "Returns a JavaScript options object without the options that are nil, so that Solid
+  applies its defaults, which a null value would replace."
+      [m]
+      (let [o #js {}]
+        (doseq [[k v] m :when (some? v)] (aset o k v))
+        o))
+
+(defn render-to-string
+      "Renders `root`, an element created with `$` or a component, to an HTML string on the
+  server. Async reads that are still pending render their `s/loading` fallbacks."
+      ([root] (render-to-string root nil))
+      ([root {:keys [nonce render-id]}]
+       (sw/renderToString (root-thunk root) (render-options {"nonce" nonce "renderId" render-id}))))
 
 (defn render-to-string-async
-      "Returns a promise of the HTML once every async read has settled."
-      [el {:keys [nonce render-id]}]
-      (js/Promise.resolve
-       (sw/renderToStream (fn [] el) #js {:nonce nonce
-                                          :renderId render-id})))
+      "Returns a promise of the HTML of `root` once every async read has settled."
+      ([root] (render-to-string-async root nil))
+      ([root {:keys [nonce render-id]}]
+       (js/Promise.resolve
+         (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce "renderId" render-id})))))
 
-(defn render-to-stream [el {:keys [nonce render-id on-complete-shell on-complete-all]}]
-      (sw/renderToStream (fn [] el) #js {:nonce nonce
-                                         :renderId render-id
-                                         :onCompleteShell on-complete-shell
-                                         :onCompleteAll on-complete-all}))
+(defn render-to-stream
+      ([root] (render-to-stream root nil))
+      ([root {:keys [nonce render-id on-complete-shell on-complete-all]}]
+       (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce
+                                                             "renderId" render-id
+                                                             "onCompleteShell" on-complete-shell
+                                                             "onCompleteAll" on-complete-all}))))
 
 (defn pipe [stream res]
       (.pipe ^js stream res))

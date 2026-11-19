@@ -438,6 +438,43 @@ Create data store via `createStore`. The setter receives a draft to mutate.
   (set-store (fn [draft] (set! (.-value draft) 1))))
 ```
 
+## Server rendering
+
+`s/render-to-string` renders an element or a component to HTML on the server, in a Node.js build
+that resolves the server builds of `solid-js` and `@solidjs/web` (the `node` export condition,
+which Node.js uses by default):
+
+```clojure
+(s/render-to-string ($ app))
+;; => "<main><h1>solid-cljs demo</h1>..."
+```
+
+Async reads that are still pending render their `s/loading` fallbacks. `s/render-to-string-async`
+returns a promise of the HTML once every async read has settled, and `s/render-to-stream`
+streams the HTML as the reads settle.
+
+The `$` macro compiles each element tree twice, to a client template and to server HTML, and
+Solid's `isServer` chooses between them at runtime. A build can keep only one of them with a
+compiler option, which also makes its bundle a little smaller:
+
+```clojure
+;; shadow-cljs.edn
+{:builds {:server {:target :node-script
+                   :compiler-options {:solid/render :server}
+                   ...}
+          :app {:target :esm
+                :compiler-options {:solid/render :dom}
+                ...}}}
+```
+
+shadow-cljs does not recompile cached namespaces when this option changes, so delete
+.shadow-cljs/builds after changing it.
+
+On the server, event handlers and refs are left out, `:inner-html` becomes the element's content,
+and Solid replaces the messages of errors that reach `s/try` with "Internal Server Error" unless
+they are marked safe. Hydration is not supported yet: the client renders the page again with
+`s/render`, so clear the server HTML from the container before rendering into it.
+
 ## Playground
 
 _source in [`dev/app/core.cljs`](src/app/core.cljs)_
