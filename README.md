@@ -428,6 +428,27 @@ Coordinating when sibling `s/loading` boundaries reveal their content via `<Reve
 again, `s/affects` declares that work in flight will change a memo or store, and `s/resolve`
 returns a promise of the first settled value of an expression.
 
+Mutations via Solid's `action`. An
+action runs in a transition and returns a promise of its result. A top-level `(s/yield expr)`
+waits for a promise while the transition holds, and `(s/yield [result expr])` binds the settled
+value for the forms that follow. Solid's actions are generator functions, which
+ClojureScript does not have, so `s/action` builds the steps from its top-level `s/yield` forms,
+and `s/yield` is only valid there.
+
+`s/optimistic` creates an atom-like optimistic signal and `s/optimistic-store` an optimistic
+store: a write inside an action shows at once and reverts when the action settles, by which
+time the action has refreshed the source of truth.
+
+```clojure
+(let [todos (s/memo #(api/fetch-todos))
+      shown (s/optimistic #(todos))
+      add-todo (s/action [todo]
+                 (swap! shown conj todo)
+                 (s/yield (api/add-todo todo))
+                 (s/refresh todos))]
+  ...)
+```
+
 ### Lifecycle
 
 Run the code after initial rendering via `onSettled`.

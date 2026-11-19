@@ -506,3 +506,46 @@
   "Returns a promise of the first settled value of `body`, waiting for the async reads in it."
   [& body]
   `(solid.core/-resolve-async (fn [] ~@body)))
+
+(defn- yield-form?
+  "Returns true if `form` is a call of the `solid.core/yield` macro."
+  [env form]
+  (core/and (seq? form)
+            (symbol? (first form))
+            (core/when-let [v (cljs.analyzer/get-expander (first form) env)]
+              (= 'solid.core/yield (symbol (str (:ns (meta v))) (str (:name (meta v))))))))
+
+(defn- action-steps
+  "Returns the form that runs `forms` up to their first top-level `s/yield` and returns the
+  yield with the continuation of the forms after it, or the value of the last form."
+  [env forms]
+  (let [[before [y & after]] (split-with #(core/not (yield-form? env %)) forms)]
+    (if y
+      (let [arg (second y)
+            [sym expr] (if (vector? arg) arg [(gensym "_") arg])]
+        `(do ~@before
+             (solid.core/-yield ~expr (fn [~sym] ~(action-steps env after)))))
+      `(do ~@before))))
+
+(defmacro action
+  "Creates an action: a function that runs `body` in a transition and returns a promise of
+  its result. A top-level `(s/yield expr)` waits for the promise `expr` to settle while the
+  transition holds, and `(s/yield [result expr])` binds its value for the forms after it.
+  Writes to optimistic signals and stores show at once and revert when the action settles.
+  ```clojure
+  (def add-todo
+    (s/action [todo]
+      (swap! optimistic-todos conj todo)
+      (s/yield [saved (api/add-todo todo)])
+      (s/refresh todos)
+      saved))
+  ```"
+  [params & body]
+  `(solid.core/-action
+     (fn ~params
+       (solid.core/-action-iterator (fn [_#] ~(action-steps &env body))))))
+
+(defmacro yield
+  "Waits for a promise in `s/action`. Only valid as a top-level form of an action's body."
+  [& _]
+  (throw (ex-info "s/yield is only valid as a top-level form of s/action" {})))

@@ -179,3 +179,38 @@
       (.. (expect (.-className (aget badges 0))) (toBe "info"))
       (.. (expect (.-textContent (aget badges 1))) (toBe "own"))
       (.. (expect (.-className (aget badges 1))) (toBe "warn")))))
+
+(test
+  "Optimistic writes in an action show at once and revert when it settles"
+  (fn []
+    (let [name (s/optimistic "Ann")
+          rename (s/action [to]
+                   (reset! name to)
+                   (s/yield (wait 30))
+                   :done)
+          c (mount ($ :p @name))]
+      (.. (expect (.-textContent c)) (toBe "Ann"))
+      (let [result (rename "Bo")]
+        (-> (wait 5)
+            (.then (fn [] (.. (expect (.-textContent c)) (toBe "Bo"))))
+            (.then (fn [] result))
+            (.then (fn [r]
+                     (.. (expect (= :done r)) (toBe true))
+                     (wait 5)))
+            (.then (fn [] (.. (expect (.-textContent c)) (toBe "Ann")))))))))
+
+(test
+  "Yields bind settled values, and a rejection rejects the action"
+  (fn []
+    (let [double (s/action [x]
+                   (s/yield [d (js/Promise.resolve (* 2 x))])
+                   (s/yield [e (js/Promise.resolve (+ d 1))])
+                   [d e])
+          fail (s/action []
+                 (s/yield (js/Promise.reject (js/Error. "nope")))
+                 :unreachable)]
+      (-> (double 5)
+          (.then (fn [r] (.. (expect (clj->js r)) (toEqual #js [10 11]))))
+          (.then (fn [] (fail)))
+          (.then (fn [_] (throw (js/Error. "should have rejected")))
+                 (fn [e] (.. (expect (.-message e)) (toBe "nope"))))))))

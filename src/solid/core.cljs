@@ -136,6 +136,27 @@
        (-deref [this]
                (value))))
 
+(defn- signal-ref
+      "Wraps the getter and setter of a Solid signal in an atom-like value."
+      [value set-value]
+      (reify
+        IDeref
+        (-deref [_]
+          (value))
+        IReset
+        (-reset! [_ v]
+          ;; The setter treats a function argument as an updater
+          (set-value (fn [_] v)))
+        ISwap
+        (-swap! [_ f]
+          (set-value (fn [old] (f old))))
+        (-swap! [_ f a]
+          (set-value (fn [old] (f old a))))
+        (-swap! [_ f a b]
+          (set-value (fn [old] (f old a b))))
+        (-swap! [_ f a b xs]
+          (set-value (fn [old] (apply f old a b xs))))))
+
 (defn signal
       "Creates an atom-like signal. Reads with `deref` are tracked.
 
@@ -146,23 +167,47 @@
        (signal v =))
       ([v {:keys [equals]}]
        (let [[value set-value] (solid/createSignal v #js {:equals equals})]
-            (reify
-             IDeref
-             (-deref [this]
-                     (value))
-             IReset
-             (-reset! [this v]
-         ;; Setter treats a function argument as an updater
-                      (set-value (fn [_] v)))
-             ISwap
-             (-swap! [this f]
-                     (set-value (fn [old] (f old))))
-             (-swap! [this f a]
-                     (set-value (fn [old] (f old a))))
-             (-swap! [this f a b]
-                     (set-value (fn [old] (f old a b))))
-             (-swap! [this f a b xs]
-                     (set-value (fn [old] (apply f old a b xs))))))))
+         (signal-ref value set-value))))
+
+(defn optimistic
+      "Creates an atom-like optimistic signal. A write inside an action shows its value at
+  once and reverts when the action settles, so the action refreshes the source of truth
+  before it ends. With a function, the signal derives its value from the function."
+      ([v]
+       (optimistic v nil))
+      ([v {:keys [equals]}]
+       (let [[value set-value] (solid/createOptimistic v (when equals #js {:equals equals}))]
+         (signal-ref value set-value))))
+
+(defn optimistic-store
+      "Creates an optimistic store from `source`, a value or a function computing it (which may
+  return a promise), and returns `[store set-store]`. Writes inside an action show at once
+  and revert when the action settles."
+      ([source] (solid/createOptimisticStore source))
+      ([source initial] (solid/createOptimisticStore source initial)))
+
+;; Actions, driven by an iterator that Solid's action steps like a generator
+
+(defn -yield [value k]
+      #js {:yielded true :value value :k k})
+
+(defn -action-iterator
+      "Returns an iterator over the steps of an action. `k` runs the next step: it receives the
+  settled value of the previous yield and returns `-yield` for the next one, or the result."
+      [k]
+      (let [next-k (volatile! k)
+            step (fn [input]
+                   (let [r (@next-k input)]
+                     (if (and (object? r) (true? (.-yielded ^js r)))
+                       (do (vreset! next-k (.-k ^js r))
+                           #js {:value (.-value ^js r) :done false})
+                       #js {:value r :done true})))]
+        #js {:next step
+             :throw (fn [e] (throw e))
+             :return (fn [v] #js {:value v :done true})}))
+
+(defn -action [f]
+      (solid/action f))
 
 (defn ref []
       (let [value (volatile! nil)
