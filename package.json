@@ -5,7 +5,7 @@
     "test:watch": "shadow-cljs watch test",
     "example": "shadow-cljs watch app & vite",
     "release": "shadow-cljs release app && vite build",
-    "vitest": "shadow-cljs compile vitest && vitest run --browser=chromium",
+    "vitest": "shadow-cljs compile vitest vitest-hydratable hydration-server && node out/hydration-server.js && vitest run --browser=chromium",
     "vitest:watch": "shadow-cljs watch vitest",
     "build-report": "shadow-cljs run shadow.cljs.build-report app public/report.html",
     "bench": "shadow-cljs release bench && vite build --config vite.bench.config.mjs && node dev/bench/run.mjs"

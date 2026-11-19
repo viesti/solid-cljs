@@ -6,6 +6,8 @@ export default defineConfig({
     include: [
       // relies on the config at shadow-cljs.edn, which outputs these files
       './out/vitest/vitest.*.js',
+      './out/vitest-hydratable/vitest.*.js',
+      './out/vitest-hydratable/hydration.*.js',
     ],
     browser: {
       provider: playwright(),

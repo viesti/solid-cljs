@@ -217,122 +217,178 @@
 (declare parse-element)
 
 (defn- parse-children [env children]
-       (let [nodes (keep (fn [c]
-                             (cond
-                              (or (nil? c) (boolean? c)) nil
-                              (string? c) (when (seq c) {:type :text :text c})
-                              (number? c) {:type :text :text (str c)}
-                              (keyword? c) {:type :text :text (name c)}
-                              (and (dollar-form? env c) (compilable? (second c) (nnext c)))
-                              (parse-element env (second c) (nnext c))
-                              :else {:type :dynamic :expr c}))
-                         children)
+  (let [nodes (keep (fn [c]
+                      (cond
+                        (or (nil? c) (boolean? c)) nil
+                        (string? c) (when (seq c) {:type :text :text c})
+                        (number? c) {:type :text :text (str c)}
+                        (keyword? c) {:type :text :text (name c)}
+                        (and (dollar-form? env c) (compilable? (second c) (nnext c)))
+                        (parse-element env (second c) (nnext c))
+                        :else {:type :dynamic
+                               :expr c
+                               :component? (boolean (and (dollar-form? env c) (not (keyword? (second c)))))}))
+                    children)
         ;; Adjacent strings become one text node in the parsed template
-             merged (reduce (fn [acc node]
-                                (if (and (= :text (:type node)) (= :text (:type (peek acc))))
-                                    (conj (pop acc) (update (peek acc) :text str (:text node)))
-                                    (conj acc node)))
-                            []
-                            nodes)]
-            (if (and (= 1 (count merged)) (= :dynamic (:type (first merged))))
-                [(assoc (first merged) :only? true)]
-                merged)))
+        merged (reduce (fn [acc node]
+                         (if (and (= :text (:type node)) (= :text (:type (peek acc))))
+                           (conj (pop acc) (update (peek acc) :text str (:text node)))
+                           (conj acc node)))
+                       []
+                       nodes)]
+    (if (and (= 1 (count merged)) (= :dynamic (:type (first merged))))
+      [(assoc (first merged) :only? true)]
+      merged)))
 
 (defn- parse-element [env tag args]
-       (let [tag-info (parse-tag tag)
-             [attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])
-             _ (when (map? (first args)) (lint/lint-element-attrs! tag attrs env))
-             {:keys [html ops ssr ssr-html content]} (compile-attrs tag-info attrs)]
-            {:type :element
-             :tag (:name tag-info)
-             :attrs html
-             :ops ops
-             :ssr ssr
-             :ssr-attrs ssr-html
-             :content content
-             :children (parse-children env children)}))
+  (let [tag-info (parse-tag tag)
+        [attrs children] (if (map? (first args)) [(first args) (rest args)] [{} args])
+        _ (when (map? (first args)) (lint/lint-element-attrs! tag attrs env))
+        {:keys [html ops ssr ssr-html content]} (compile-attrs tag-info attrs)]
+    {:type :element
+     :tag (:name tag-info)
+     :attrs html
+     :ops ops
+     :ssr ssr
+     :ssr-attrs ssr-html
+     :content content
+     :children (parse-children env children)}))
 
-(defn- node-html [{:keys [type tag attrs children text only?]}]
-       (case type
-             :text (escape-text text)
-             :dynamic (if only? "" "<!>")
-             :element (str "<" tag (str/join (map #(str " " %) attrs)) ">"
-                           (when-not (void-elements tag)
-                                     (str (str/join (map node-html children)) "</" tag ">")))))
+(defn- node-html
+  "Returns the client template HTML of `node`. A dynamic child is a `<!>` placeholder, or a
+  pair of `$` and `/` comments around the server HTML it hydrates."
+  [{:keys [type tag attrs children text only?]} hydratable?]
+  (case type
+    :text (escape-text text)
+    :dynamic (cond only? "" hydratable? "<!--$--><!--/-->" :else "<!>")
+    :element (str "<" tag (str/join (map #(str " " %) attrs)) ">"
+                  (when-not (void-elements tag)
+                    (str (str/join (map #(node-html % hydratable?) children)) "</" tag ">")))))
 
 (defn- needs-ref? [{:keys [type ops children only?]}]
-       (case type
-             :text false
-             :dynamic (not only?)
-             :element (boolean (or (seq ops) (some needs-ref? children) (some :only? children)))))
+  (case type
+    :text false
+    :dynamic (not only?)
+    :element (boolean (or (seq ops) (some needs-ref? children) (some :only? children)))))
+
+(defn- form-head? [sym form]
+  (and (seq? form) (= sym (first form))))
+
+(defn- insert-form
+  "Returns the form that inserts the dynamic child `c` into `el`. A component is created
+  now, as Solid's compiled JSX does, and other children are inserted through an accessor."
+  [el c marker current hydratable?]
+  (let [value (cond
+                (:component? c) `(solid.core/-resolve ~(:expr c))
+                hydratable? `(solid.core/-scope (fn [] ~(:expr c)))
+                :else `(fn [] ~(:expr c)))]
+    (cond
+      current `(solid.core/-insert ~el ~value ~marker ~current)
+      marker `(solid.core/-insert ~el ~value ~marker)
+      :else `(solid.core/-insert ~el ~value))))
 
 (defn- emit-node
-       "Returns the let bindings and operations that bind the element `node` held in `el`."
-       [node el]
-       (let [children (:children node)
-             last-needed (last (keep-indexed (fn [i c] (when (needs-ref? c) i)) children))
-             syms (when last-needed
-                        (vec (for [i (range (inc last-needed))]
-                                  (gensym (str "n" i "_")))))
-             walk (mapcat (fn [i sym]
-                              [sym (if (zero? i)
-                                       `(.-firstChild ~el)
-                                       `(.-nextSibling ~(syms (dec i))))])
-                          (range) syms)
-             child-results (for [[i c] (map-indexed vector children)]
-                                (case (:type c)
-                                      :element (when (and syms (< i (count syms)) (needs-ref? c))
-                                                     (emit-node c (syms i)))
-                                      :dynamic {:ops [(if (:only? c)
-                                                          `(solid.core/-insert ~el (fn [] ~(:expr c)))
-                                                          `(solid.core/-insert ~el (fn [] ~(:expr c)) ~(syms i)))]}
-                                      nil))]
-            {:bindings (vec (concat walk (mapcat :bindings child-results)))
-             :ops (vec (concat (map #(% el) (:ops node)) (mapcat :ops child-results)))}))
+  "Returns the let bindings that walk to the nodes of `node`, held in `el`, and the operations
+  on them, split into `:ops` (events, refs and directives), `:inserts` and `:effects`. The
+  client runs them in that order, as Solid's compiled JSX does, so that hydration creates
+  reactive owners in the order the server did."
+  [node el hydratable?]
+  (let [children (vec (:children node))
+        last-needed (last (keep-indexed (fn [i c] (when (needs-ref? c) i)) children))
+        step (fn [prev] (if prev `(.-nextSibling ~prev) `(.-firstChild ~el)))
+        walked (loop [i 0 prev nil acc {:bindings [] :ops [] :inserts [] :effects []}]
+                 (if (or (nil? last-needed) (> i last-needed))
+                   acc
+                   (let [c (children i)]
+                     (cond
+                       (and (= :dynamic (:type c)) hydratable?)
+                       (let [start (gensym "start") marker (gensym "marker") current (gensym "current")]
+                         (recur (inc i) marker
+                                (-> acc
+                                    (update :bindings into [start (step prev)
+                                                            [marker current] `(solid.core/-next-marker (.-nextSibling ~start))])
+                                    (update :inserts conj (insert-form el c marker current true)))))
+
+                       (= :dynamic (:type c))
+                       (let [marker (gensym "marker")]
+                         (recur (inc i) marker
+                                (-> acc
+                                    (update :bindings into [marker (step prev)])
+                                    (update :inserts conj (insert-form el c marker nil false)))))
+
+                       :else
+                       (let [sym (gensym (str "n" i "_"))
+                             acc (update acc :bindings into [sym (step prev)])]
+                         (recur (inc i) sym
+                                (if (and (= :element (:type c)) (needs-ref? c))
+                                  (merge-with into acc (emit-node c sym hydratable?))
+                                  acc)))))))
+        only (some #(when (:only? %) (insert-form el % nil nil hydratable?)) children)
+        own (map #(% el) (:ops node))]
+    (-> walked
+        (update :ops #(into (vec (remove (partial form-head? 'solid.core/-effect) own)) %))
+        (update :effects #(into (vec (filter (partial form-head? 'solid.core/-effect) own)) %))
+        (update :inserts #(cond->> % only (into [only]))))))
+
+(defn- server-child [{:keys [expr component? only?]} hydratable?]
+  (let [value (cond
+                component? `(solid.core/-ssr-child ~expr)
+                hydratable? `(solid.core/-scope (fn [] (solid.core/-ssr-child ~expr)))
+                :else `(fn [] (solid.core/-ssr-child ~expr)))]
+    (if (and hydratable? (not only?))
+      ["<!--$-->" value "<!--/-->"]
+      [value])))
 
 (defn- server-segments
   "Returns the server HTML of `node` as a sequence of strings and forms whose values are
-  rendered between them."
-  [{:keys [type tag attrs ssr ssr-attrs content children text expr]}]
+  rendered between them. The root of a hydratable template carries a hydration key."
+  [{:keys [type tag attrs ssr ssr-attrs content children text] :as node} hydratable? root?]
   (case type
     :text [(escape-text text)]
-    :dynamic [`(fn [] (solid.core/-ssr-child ~expr))]
+    :dynamic (server-child node hydratable?)
     :element
     (concat
-      [(str "<" tag (str/join (map #(str " " %) (concat attrs ssr-attrs))))]
+      [(str "<" tag)]
+      (when (and hydratable? root?) [`(solid.core/-ssr-key)])
+      [(str/join (map #(str " " %) (concat attrs ssr-attrs)))]
       ssr
       [">"]
       (when-not (void-elements tag)
         (concat
           (cond
-            (nil? content) (mapcat server-segments children)
+            (nil? content) (mapcat #(server-segments % hydratable? false) children)
             (string? (:expr content)) [(if (:raw? content) (:expr content) (escape-text (:expr content)))]
             (:raw? content) [`(fn [] (solid.core/-ssr-raw ~(:expr content)))]
             :else [`(fn [] (solid.core/-ssr-child ~(:expr content)))])
           [(str "</" tag ">")])))))
 
-(defn- server-form [node]
+(defn- server-form [node hydratable?]
   (let [[parts values] (reduce (fn [[parts values] seg]
                                  (if (string? seg)
                                    [(conj (pop parts) (str (peek parts) seg)) values]
                                    [(conj parts "") (conj values seg)]))
                                [[""] []]
-                               (server-segments node))]
+                               (server-segments node hydratable? true))]
     `(solid.core/-compiled
        (fn [] (solid.core/-ssr (cljs.core/array ~@parts) ~@values)))))
 
-(defn- client-form [node]
+(defn- client-form [node hydratable?]
   (let [svg? (and (svg-elements (:tag node)) (not= "svg" (:tag node)))
-        html (cond->> (node-html node) svg? (format "<svg>%s</svg>"))
+        html (cond->> (node-html node hydratable?) svg? (format "<svg>%s</svg>"))
+        template `(solid.core/-template ~html ~(when svg? 2))
         el (gensym "el")
-        {:keys [bindings ops]} (emit-node node el)]
+        {:keys [bindings ops inserts effects]} (emit-node node el hydratable?)
+        events? (some (partial form-head? 'solid.core/-event!) ops)]
     `(solid.core/-compiled
        (fn []
          (solid.core/untrack
            (fn []
-             (let [~el ((solid.core/-template ~html ~(when svg? 2)))
+             (let [~el ~(if hydratable? `(solid.core/-next-element ~template) `(~template))
                    ~@bindings]
                ~@ops
+               ~@inserts
+               ~@effects
+               ~@(when (and hydratable? events?) [`(solid.core/-run-hydration-events)])
                ~el)))))))
 
 (defn render-target
@@ -342,11 +398,18 @@
   []
   (get-in @cljs.env/*compiler* [:options :solid/render] :both))
 
+(defn hydratable?
+  "Returns true if the build sets the compiler option `:solid/hydratable`, which compiles
+  server HTML with hydration keys and markers, and client code that hydrates it."
+  []
+  (boolean (get-in @cljs.env/*compiler* [:options :solid/hydratable])))
+
 (defn compile-element
   "Returns the form that creates the element of a `$` form with a keyword tag."
   [env tag args]
-  (let [node (parse-element env tag args)]
+  (let [node (parse-element env tag args)
+        hy? (hydratable?)]
     (case (render-target)
-      :dom (client-form node)
-      :server (server-form node)
-      `(if solid.core/server? ~(server-form node) ~(client-form node)))))
+      :dom (client-form node hy?)
+      :server (server-form node hy?)
+      `(if solid.core/server? ~(server-form node hy?) ~(client-form node hy?)))))

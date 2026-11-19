@@ -472,8 +472,43 @@ shadow-cljs does not recompile cached namespaces when this option changes, so de
 
 On the server, event handlers and refs are left out, `:inner-html` becomes the element's content,
 and Solid replaces the messages of errors that reach `s/try` with "Internal Server Error" unless
-they are marked safe. Hydration is not supported yet: the client renders the page again with
-`s/render`, so clear the server HTML from the container before rendering into it.
+they are marked safe.
+
+### Hydration
+
+`s/hydrate` makes server-rendered HTML interactive without rendering it again: the client adopts
+the server's DOM nodes and attaches event handlers and reactive updates to them. Both the server
+build and the client build need the compiler option `:solid/hydratable`, which adds hydration
+keys and markers to the server HTML and compiles client code that claims those nodes:
+
+```clojure
+;; shadow-cljs.edn
+{:builds {:server {:target :node-script
+                   :compiler-options {:solid/render :server :solid/hydratable true}
+                   ...}
+          :app {:target :esm
+                :compiler-options {:solid/render :dom :solid/hydratable true}
+                ...}}}
+```
+
+The server puts `s/hydration-script` in the page head, which records events that happen before
+hydration so that they can be replayed, and renders the app into the body:
+
+```clojure
+(str "<!doctype html><html><head>" (s/hydration-script) "</head>"
+     "<body><div id=\"root\">" (s/render-to-string ($ app)) "</div>"
+     "<script type=\"module\" src=\"/js/main.js\"></script></body></html>")
+```
+
+The client hydrates the same app into the same container:
+
+```clojure
+(s/hydrate ($ app) (js/document.getElementById "root"))
+```
+
+Hydratable client code also renders normally with `s/render`, so a build can compile it for
+both. Without `:solid/hydratable`, `s/render` appends to a container that is not empty, so clear
+the server HTML from it before rendering.
 
 ## Playground
 

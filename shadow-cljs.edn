@@ -18,6 +18,15 @@
                      :main solid.ssr-test-runner/main
                      :output-to "out/ssr-test.js"
                      :compiler-options {:solid/render :server}}
+          :hydration-server {:target :node-script
+                             :main hydration.server/main
+                             :output-to "out/hydration-server.js"
+                             :compiler-options {:solid/render :server :solid/hydratable true}}
+          ;; The browser tests again, compiled for hydration, with the hydration test
+          :vitest-hydratable {:target :esm-files
+                              :output-dir "out/vitest-hydratable"
+                              :ns-regexp "^(vitest\\.|hydration\\.client-test$)"
+                              :compiler-options {:solid/hydratable true}}
           :test {:target :node-script
                  :main solid.test-runner/main
                  :output-to "out/test.js"}

@@ -47,6 +47,9 @@
       (let [x (-resolve x)]
         (sw/escape (if (keyword? x) (name x) x))))
 
+(defn -ssr-key []
+      (sw/ssrHydrationKey))
+
 (defn -ssr-raw [x]
       (if (nil? x) "" (str x)))
 
@@ -71,7 +74,27 @@
   ([parent accessor]
    (sw/insert parent accessor))
   ([parent accessor marker]
-   (sw/insert parent accessor marker)))
+   (sw/insert parent accessor marker))
+  ([parent accessor marker current]
+   (sw/insert parent accessor marker current)))
+
+(defn -scope
+  "Marks the accessor `f` of a dynamic child as a hydration scope, as Solid's compiled JSX
+  does on both the server and the client."
+  [f]
+  (sw/scope f))
+
+(defn -next-element
+  "Claims the element that the server rendered for this template while hydrating, and
+  clones `template` otherwise."
+  [template]
+  (sw/getNextElement template))
+
+(defn -next-marker [start]
+  (sw/getNextMarker start))
+
+(defn -run-hydration-events []
+  (sw/runHydrationEvents))
 
 (defn -effect [compute apply]
   (sw/effect compute apply))
@@ -395,6 +418,22 @@
       (let [o #js {}]
         (doseq [[k v] m :when (some? v)] (aset o k v))
         o))
+
+(defn hydrate
+      "Hydrates the HTML that the server rendered into the DOM `node` from `root`, an element
+  created with `$` or a component, and returns a function that disposes it. The client and
+  the server must compile with the compiler option `:solid/hydratable`, and the page must
+  include `hydration-script`."
+      ([root node] (hydrate root node nil))
+      ([root node {:keys [render-id]}]
+       (sw/hydrate (root-thunk root) node (render-options {"renderId" render-id}))))
+
+(defn hydration-script
+      "Returns the script element, as HTML, that the head of a server-rendered page needs for
+  `hydrate`."
+      ([] (hydration-script nil))
+      ([{:keys [nonce]}]
+       (sw/generateHydrationScript (render-options {"nonce" nonce}))))
 
 (defn render-to-string
       "Renders `root`, an element created with `$` or a component, to an HTML string on the
