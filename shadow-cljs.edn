@@ -13,7 +13,8 @@
                 ;; import() in @solidjs/web
                 :js-options {:js-provider :import}
                 :modules {:main {:entries [app.core]}}
-                :compiler-options {:solid/render :dom}}
+                :compiler-options {:solid/render :dom}
+                :dev {:compiler-options {:solid/refresh true}}}
           :ssr-test {:target :node-script
                      :main solid.ssr-test-runner/main
                      :output-to "out/ssr-test.js"

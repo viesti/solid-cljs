@@ -1,6 +1,7 @@
 (ns solid.core
     (:refer-clojure :exclude [if when for cond case try if-let when-let if-some when-some or some-> some->> resolve repeat])
     (:require [clojure.core :as core]
+              [clojure.string]
               [clojure.walk :as walk]
               [solid.compiler :as sc]
               [solid.lint :as lint]
@@ -75,6 +76,13 @@
      :kept (map first (remove (set rewritten) candidates))
      :remaining (core/when (seq (dissoc remaining :or)) remaining)}))
 
+(defn- source-signature
+  "Returns a hash of a component's source that stays the same while the source does: the
+  numbers in the names that `#(...)` and `foo#` generate change on every read, so they are
+  left out."
+  [params body]
+  (str (hash (clojure.string/replace (pr-str params body) #"__\d+" ""))))
+
 (defmacro defui
           "Defines a Solid UI component. Supports docstrings and metadata.
 
@@ -107,14 +115,25 @@
                             (core/or props-param (gensym "props")))
                 {:keys [lookups kept remaining]} (core/when (map? props-param)
                                                    (props-lookups props-param props-sym body))
+                source-body body
                 body (walk/postwalk-replace lookups body)]
                (core/when-not (false? (:solid/lint attr-map))
                  (lint/lint-component-body! sym body &env)
                  (core/when (seq kept) (lint/warn-destructured-props! sym kept &env)))
-               `(defn ~(with-meta sym meta-map) [props#]
-                      (let [~props-sym (solid.core/-props props#)
-                            ~@(core/when remaining [remaining props-sym])]
-                           ~@body))))
+               (let [component `(fn ~sym [props#]
+                                  (let [~props-sym (solid.core/-props props#)
+                                        ~@(core/when remaining [remaining props-sym])]
+                                    ~@body))]
+                 (if (get-in @cljs.env/*compiler* [:options :solid/refresh])
+                   ;; Hot reloads swap instances of the proxy to the new definition
+                   ;; The signature is the source's hash, so unchanged components keep their state
+                   `(def ~(with-meta sym meta-map)
+                      (solid.core/-refresh-component ~(str (-> &env :ns :name) "/" sym)
+                                                     ~component
+                                                     ~(core/when-let [line (:line (meta &form))]
+                                                        (str (-> &env :ns :name) ":" line))
+                                                     ~(source-signature params source-body)))
+                   `(def ~(with-meta sym meta-map) ~component)))))
 
 (defn- wrap-children [children]
        (core/for [x children]

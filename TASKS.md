@@ -75,7 +75,15 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
 `onHydrationEnd`, `lazyModule`, event handler data tuples, `respond`, `reload`, cookie helpers,
 `configureServerErrors`.
 
-### 5. Tooling — in progress
+### 5. Tooling — done
+
+- Hot reload through `solid-js/refresh`: done. With `:solid/refresh`, `defui` defines a refresh
+  proxy (`-refresh-component` in src/solid/core.cljs), standing in for the bundler hot API with a
+  per-component table that survives reloads. Components get Solid's `$DEVCOMP` marker, which
+  the proxy needs to follow updates, and a signature hashed from their source as written, with
+  the numbers of generated names removed, so unchanged components keep their state. Test:
+  test/vitest/refresh.cljs; checked by hand in the playground with shadow-cljs watch, where an
+  edit to the toolbar kept a todo added before it. Not tried with Clojurific's reload.
 
 - Component names and locations: done. `$` passes `"<ns>/<name>"` and `"<ns>:<line>:<col>"` to
   `createComponent` behind `goog.DEBUG`, built with an explicit `{:tag 'boolean}` because

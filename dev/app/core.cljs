@@ -277,12 +277,6 @@
                ($ canvas {:example example}
                   ($ (examples @example))))))
 
-(defn render-app []
-      (s/render app (js/document.getElementById "root")))
-
-;; hot-reloading setup
-(defonce dispose (atom (render-app)))
-
-(defn ^:dev/after-load reload []
-      (@dispose)
-      (reset! dispose (render-app)))
+;; Renders once. The build sets :solid/refresh, so a hot reload swaps the components that
+;; changed and keeps the state of the others.
+(defonce dispose (s/render app (js/document.getElementById "root")))

@@ -789,6 +789,25 @@ or to a component, as from shadow-cljs's `shadow.lazy/load`:
 (s/loading ($ spinner) ($ editor {:doc doc}))
 ```
 
+## Hot reloading
+
+With the compiler option `:solid/refresh` in a development build, a hot reload swaps the
+components whose code changed and keeps the state of the others, as Solid's refresh does for
+JSX. Render the app once, under `defonce`, instead of again on every reload:
+
+```clojure
+;; shadow-cljs.edn
+{:builds {:app {...
+                :dev {:compiler-options {:solid/refresh true}}}}}
+```
+
+```clojure
+(defonce dispose (s/render ($ app) (js/document.getElementById "root")))
+```
+
+A component whose code changed renders again and starts with fresh local state, and the state
+of its parents and siblings stays.
+
 ## Editor support
 
 solid-cljs exports a [clj-kondo](https://github.com/clj-kondo/clj-kondo) configuration that

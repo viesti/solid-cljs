@@ -5,7 +5,8 @@
               ["@solidjs/web" :as sw]
               ["@solidjs/h" :default h]
               [solid.compiler :as sc]
-              [solid.props :as props]))
+              [solid.props :as props]
+              ["solid-js/refresh" :as refresh]))
 
 (defn element?
       "Returns true if x is an element created with `$`."
@@ -423,6 +424,39 @@
             (aset o (aget statics i) (aget statics (inc i)))
             (recur (+ i 2))))
         o))
+
+;; Hot reloading that keeps state, through solid-js/refresh
+
+(defonce ^:private refresh-state #js {})
+
+(defn -refresh-component
+      "Returns a proxy of the component `f` that Solid's refresh runtime swaps to the latest
+  definition of `id` when a hot reload evaluates the component again, keeping the state of the
+  components around it. Stands in for the hot API that bundlers give compiled JSX modules,
+  keeping each component's registry across reloads."
+      ([id f loc] (-refresh-component id f loc nil))
+      ([id f loc signature]
+      (let [^js state (or (unchecked-get refresh-state id)
+                      (let [st #js {:disposers #js []}]
+                        (unchecked-set refresh-state id st)
+                        st))
+            disposers (.-disposers state)
+            data (when (pos? (alength disposers))
+                   (let [d #js {}]
+                     (doseq [cb disposers] (cb d))
+                     d))
+            _ (set! (.-disposers state) #js [])
+            ;; Only components with Solid's development marker follow updates through a proxy
+            _ (unchecked-set f solid/$DEVCOMP true)
+            registry (refresh/$$registry)
+            proxy (refresh/$$component registry id f #js {:location (or loc js/undefined)
+                                                           :signature (or signature js/undefined)})
+            hot #js {:data (or data js/undefined)
+                     :accept (fn [& _])
+                     :dispose (fn [cb] (.push (.-disposers state) cb))
+                     :invalidate (fn [] (.reload js/location))}]
+        (refresh/$$refresh "standard" hot registry)
+        proxy)))
 
 (defn -component
       "Returns an element that creates the component `comp` with `props`, named
