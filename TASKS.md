@@ -206,9 +206,15 @@ Sub-steps:
 4. READMEs of the examples and the main README's examples section.
 5. Pin the commits and check the three examples, development and production.
 
+### 10. Format the code with clojure-lsp — not started
+
+Run `clojure-lsp format` over the library, the tests and the examples, in a commit of its own
+with no other changes, so that later diffs show only real changes. Check the macros still
+compile and the tests pass afterwards.
+
 ### Status
 
-Steps 1 to 8 are done. Step 9 is not started.
+Steps 1 to 8 are done. Steps 9 and 10 are not started.
 
 ### Deferred
 
