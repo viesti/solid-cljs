@@ -2,10 +2,15 @@
   "Server components over Solid's frames runtime, `@solidjs/web/frames`, which resolves to its
   server or browser module by the build's export conditions."
   (:require-macros [solid.server-components])
-  (:require ["@solidjs/web/frames" :as frames]
+  (:require ["@solidjs/web" :as sw]
+            ["@solidjs/web/frames" :as frames]
             ["@solidjs/web/server-functions" :as sf]
             ["solid-js" :as solid]
             [cljs.reader :as reader]))
+
+(def ^boolean -server?
+  "True in Solid's server build."
+  sw/isServer)
 
 (defn- declare-call
   "Wraps the reference `f` as `opts` declare it: live, broadcast to every viewer, or as a `GET`."

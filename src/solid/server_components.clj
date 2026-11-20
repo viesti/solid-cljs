@@ -12,8 +12,9 @@
 
   In the browser, calling it returns a promise of a component, which `server-component` mounts.
   On the server, calling it during a render renders the component into the document, where the
-  browser adopts it. As with `defserverfn`, browser builds need the compiler option
-  `:solid/render :dom` and server builds `:server`.
+  browser adopts it. As with `defserverfn`, the compiler option `:solid/render :dom` leaves the
+  body out of browser builds, and without the option both sides are compiled and chosen at
+  runtime.
 
   `opts` may set `:method :get` and `:encoding :js`, as for `defserverfn`; the encoding applies
   to the arguments only. With `:live true` the response stays open, and the browser updates the
@@ -35,10 +36,9 @@
     (case (tpl/render-target)
       :server `(def ~fn-name (solid.server-components/-register ~id (fn ~params ~@body) ~opts))
       :dom `(def ~fn-name (solid.server-components/-reference ~id ~opts))
-      (throw (ex-info (str "defservercomponent " fn-name " needs the compiler option :solid/render "
-                           "set to :dom in browser builds and :server in server builds, so that "
-                           "the component is left out of the browser build.")
-                      {:id id})))))
+      `(def ~fn-name (if solid.server-components/-server?
+                       (solid.server-components/-register ~id (fn ~params ~@body) ~opts)
+                       (solid.server-components/-reference ~id ~opts))))))
 
 (defmacro server-component
   "Returns a component that renders the server component that `expr` calls, such as

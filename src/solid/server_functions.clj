@@ -6,9 +6,11 @@
   function that calls it over HTTP through Solid's server-functions runtime and returns a
   promise of its result. Both builds give it the id `\"<namespace>/<name>\"`.
 
-  The browser build must not contain `body`, so server functions need the compiler option
-  `:solid/render :dom` in browser builds and `:server` in server builds. The server answers
-  calls with `solid.server-functions.server/handle-request`.
+  With the compiler option `:solid/render :dom` the browser build leaves `body` out, and with
+  `:server` the server build leaves out the browser side. Without the option, as in a build
+  that compiles once for both, such as Clojurific's, both are compiled and Solid's `isServer`
+  chooses at runtime, so the browser code contains `body`. The server answers calls with
+  `solid.server-functions.server/handle-request`.
 
   `opts` may set `:method :get`, for calls that read and may be cached, and `:encoding :js`,
   which passes arguments and results to Solid's serializer as they are instead of as EDN.
@@ -23,7 +25,6 @@
     (case (tpl/render-target)
       :server `(def ~fn-name (solid.server-functions/-register ~id (fn ~params ~@body) ~opts))
       :dom `(def ~fn-name (solid.server-functions/-reference ~id ~opts))
-      (throw (ex-info (str "defserverfn " fn-name " needs the compiler option :solid/render set "
-                           "to :dom in browser builds and :server in server builds, so that the "
-                           "function body is left out of the browser build.")
-                      {:id id})))))
+      `(def ~fn-name (if solid.server-functions/-server?
+                       (solid.server-functions/-register ~id (fn ~params ~@body) ~opts)
+                       (solid.server-functions/-reference ~id ~opts))))))

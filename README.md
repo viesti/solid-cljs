@@ -713,11 +713,15 @@ and `{:method :get}` marks a function that only reads, so that its calls can be 
 `solid.server-functions/configure-client` and `solid.server-functions.server/configure-server`
 pass options to Solid's runtime, such as `:base` for another path.
 
-The browser build must not contain the function bodies, so builds that use `defserverfn` set
-`:solid/render` to `:dom` for the browser and `:server` for the server, and the compiler
-refuses `defserverfn` otherwise. Clojurific compiles each namespace once for both, so it
-cannot use server functions yet. A browser source map with embedded sources still contains the
-original code, so do not publish such source maps for these namespaces.
+With `:solid/render` set to `:dom` for the browser and `:server` for the server, the browser
+build leaves the function bodies out. A build without the option, such as Clojurific's, which
+compiles each namespace once for both, compiles both sides and chooses with Solid's `isServer`
+at runtime. Its development bundles contain the bodies. In the Clojurific example the
+production bundle does not, since the bundler drops the server branch. Code that both sides
+load must not require server-only namespaces then, such as one that opens a database: the
+Clojurific example hands its database functions to the shared code from the server entry. A
+browser source map with embedded sources still contains the original code, so do not publish
+such source maps for these namespaces.
 
 ### Server components
 

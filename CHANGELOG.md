@@ -51,6 +51,8 @@ app needs.
 - Options for signals, memos and effects (`:owned-write`, `:unobserved`, `:lazy`, `:error`),
   and contexts without a default.
 - Server functions with `defserverfn` and `solid.server-functions.server/handle-request`.
+  Without `:solid/render`, as in Clojurific, `defserverfn` and `defservercomponent` compile
+  both sides and choose with Solid's `isServer` at runtime.
 - A `defserverfn` may return `s/respond`, whose status and headers reach the browser while
   its value travels as EDN. `s/respond` and `s/reload` take `:headers` as a map.
 - `mark-raw`, `until`, `repeat-map`, owner and hydration utilities, cookie helpers, and

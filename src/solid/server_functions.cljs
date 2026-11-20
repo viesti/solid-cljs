@@ -14,6 +14,10 @@
     (doseq [[k v] opts] (aset o (props/prop-name k) (if (map? v) (js-options v) v)))
     o))
 
+(def ^boolean -server?
+  "True in Solid's server build."
+  sw/isServer)
+
 (defn- with-method [f {:keys [method]}]
   (if (= :get method) (sf/GET f) f))
 

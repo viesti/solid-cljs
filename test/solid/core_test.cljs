@@ -1,6 +1,7 @@
 (ns solid.core-test
   (:require [cljs.test :refer [deftest testing is async]]
-            [solid.core :as s :refer [$ defui]]))
+            [solid.core :as s :refer [$ defui]]
+            [solid.server-functions :refer [defserverfn]]))
 
 ;; ============================================
 ;; Reactive Primitives Tests
@@ -259,3 +260,19 @@
           deferred-val (s/root (fn [_] (s/deferred #(* 2 @sig))))]
       (is (= (deferred-val) 10) "deferred should return the correct calculation"))))
 
+
+;; This build sets no :solid/render, so defserverfn compiles both sides and runs as the browser
+(defserverfn double-it [n]
+  (* 2 n))
+
+(deftest server-function-without-render-target
+  (let [fetch (.-fetch js/globalThis)
+        addresses (atom [])]
+    (set! (.-fetch js/globalThis)
+          (fn [address _]
+            (swap! addresses conj (str address))
+            (js/Promise. (fn [_ _]))))
+    (let [result (double-it 4)]
+      (set! (.-fetch js/globalThis) fetch)
+      (is (instance? js/Promise result) "the browser side calls the server")
+      (is (= ["/_server/data/solid.core-test%2Fdouble-it"] @addresses)))))
