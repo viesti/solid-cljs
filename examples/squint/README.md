@@ -45,6 +45,11 @@ dist/server, and `yarn start` runs it. The dev server also starts Squint's nREPL
   Solid plugin checks that the app module exists when it starts.
 - **src/app/app.cljs** has the components and default-exports the root component, and
   **src/app/document.cljs** default-exports the document around it.
+- **src/app/style.css** holds the styles. document.cljs imports it with a static `import`
+  written with `js*`, since in development Squint turns a `:require` into a dynamic import,
+  which Solid's plugin does not follow. The plugin then puts the styles in the server-rendered
+  head (inlined in development, linked from the bundle in production), and Vite updates them in
+  place when the file changes.
 - **src/app/todos.cljs** has the server functions and the shared list, written as
   `"use server"` functions. A string as the first form of a Squint function body becomes a
   directive, so `(defn ^:async add-todo [title] "use server" ...)` is a server function.

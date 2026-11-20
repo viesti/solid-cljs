@@ -13,8 +13,13 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve('public/js/main.js'),
-      output: { entryFileNames: 'assets/app.js', chunkFileNames: 'assets/[name]-[hash].js' },
+      // The stylesheet is an input of its own, which the page links instead of the script loading it
+      input: { app: resolve('public/js/main.js'), style: resolve('public/css/style.css') },
+      output: {
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name][extname]',
+      },
     },
   },
 });

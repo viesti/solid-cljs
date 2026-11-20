@@ -16,25 +16,12 @@
 
 (def ^:private port (or js/process.env.PORT 3000))
 
-(def ^:private style
-  "body { margin: 0; font: 16px system-ui, sans-serif; background: #f4f4f5; color: #18181b; }
-   main { max-width: 560px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
-   section { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
-   h1 { font-size: 24px; margin: 0; }
-   h2 { font-size: 16px; margin: 0 0 12px; }
-   button { font: inherit; padding: 4px 12px; border-radius: 6px; border: 1px solid #d4d4d8; background: #fff; cursor: pointer; }
-   input[type=\"text\"] { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid #d4d4d8; }
-   ul { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 4px; }
-   li { display: flex; gap: 8px; align-items: center; }
-   small { margin-right: auto; }
-   .inline { display: inline-flex; gap: 4px; }
-   .done { text-decoration: line-through; color: #a1a1aa; }
-   .muted { color: #71717a; }")
-
 (defn- page-start []
   (str "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-       "<title>solid-cljs demo</title><link rel=\"icon\" href=\"data:,\"><style>" style "</style>" (s/hydration-script)
+       "<title>solid-cljs demo</title><link rel=\"icon\" href=\"data:,\">"
+       "<link rel=\"stylesheet\" href=\"" (if production? "/assets/style.css" "/css/style.css") "\">"
+       (s/hydration-script)
        "</head><body><div id=\"root\">"))
 
 (def ^:private page-end

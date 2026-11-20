@@ -51,6 +51,9 @@ commit, through the `:local` alias in deps.edn.
 - **demo/server.cljs** answers `/_server` with `handle-request` (server functions and live
   streams), renders the page for `/`, and serves the browser code through Vite in middleware mode
   in development, or from dist/ in production.
+- **public/css/style.css** holds the styles. In development shadow-cljs reloads the linked
+  stylesheet in the page when the file changes (`:devtools {:watch-dir "public"}`), and the
+  production build emits it as `dist/assets/style.css`.
 - **vite.config.mjs** pre-bundles the Solid packages together, so that the page loads one copy of
   `solid-js`, and builds `public/js/main.js` into `dist/assets/app.js`.
 - The browser build sets `:solid/refresh` in development, so a hot reload re-renders only the

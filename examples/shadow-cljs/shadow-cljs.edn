@@ -8,7 +8,9 @@
                 :modules {:main {:entries [demo.client]}}
                 ;; Server function and server component bodies stay out of the browser build
                 :compiler-options {:solid/render :dom :solid/hydratable true}
-                :dev {:compiler-options {:solid/refresh true}}}
+                :dev {:compiler-options {:solid/refresh true}}
+                ;; Reloads public/css/style.css in the page when it changes
+                :devtools {:watch-dir "public"}}
           :server {:target :node-script
                    :main demo.server/main
                    :output-to "out/server.js"
