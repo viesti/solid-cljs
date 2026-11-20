@@ -33,3 +33,27 @@
      (s/flush)
      (.. (expect (.getAttribute el "label")) (toBe "b"))
      (.. (expect (.-textContent el)) (toBe "child")))))
+
+(test
+ "Keywords in the prop namespace set DOM properties"
+ (fn []
+   (let [items (s/signal #js [1 2])
+         checked (s/signal true)
+         c (.-container (render ($ :div
+                                   ($ :solid-test-el {:prop/items @items :prop/start-index 3})
+                                   ($ :input {:type :checkbox :prop/indeterminate @checked})
+                                   ($ :solid-test-el.spread {:& {:prop/items #js [9] :title "t"}}))))
+         el (.querySelector c "solid-test-el")
+         input (.querySelector c "input")
+         spread-el (.querySelector c ".spread")]
+     (.. (expect (.-items el)) (toEqual #js [1 2]))
+     (.. (expect (.-startIndex el)) (toBe 3))
+     (.. (expect (.hasAttribute el "items")) (toBe false))
+     (.. (expect (.-indeterminate input)) (toBe true))
+     (reset! items #js [5])
+     (reset! checked false)
+     (s/flush)
+     (.. (expect (.-items el)) (toEqual #js [5]))
+     (.. (expect (.-indeterminate input)) (toBe false))
+     (.. (expect (.-items spread-el)) (toEqual #js [9]))
+     (.. (expect (.getAttribute spread-el "title")) (toBe "t")))))

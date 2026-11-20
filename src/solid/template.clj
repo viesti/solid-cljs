@@ -139,6 +139,16 @@
            (symbol? k)
            (update acc :ops conj (fn [el] `(~k ~el (fn [] ~v))))
 
+           ;; Sets the DOM property in the browser and renders nothing on the server, as Solid's
+           ;; compiler does with prop:
+           (props/property-key? k)
+           (let [prop (props/prop-name (name k))]
+             (update acc :ops conj
+                     (if (sc/literal? v)
+                       (fn [el] `(solid.core/-prop! ~el ~prop ~v nil))
+                       (fn [el] `(solid.core/-effect (fn [] ~v)
+                                                     (fn [v# p#] (solid.core/-prop! ~el ~prop v# p#)))))))
+
            (= k :ref)
            (update acc :ops conj (fn [el] `(solid.core/-ref! ~el ~v)))
 
@@ -156,7 +166,7 @@
              (update acc :ssr conj `(solid.core/-ssr-attr "_key" ~v)))
 
            (= k :&)
-           (let [explicit (set (keep #(when (keyword? %) (props/attr-name (name %))) (keys attrs)))]
+           (let [explicit (set (keep #(when (keyword? %) (props/attr-name (props/entry-name %))) (keys attrs)))]
              (-> acc
                  (update :ops conj (fn [el]
                                      `(solid.core/-spread! ~el (fn [] (solid.core/-element-attrs ~v ~explicit)))))

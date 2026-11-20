@@ -34,6 +34,21 @@
 
 (def ^:private dom-property-names (set (vals dom-properties)))
 
+(defn property-key?
+  "Returns true if `k` is a keyword in the `prop` namespace, such as `:prop/value`, which sets
+  the element's DOM property instead of an attribute."
+  [k]
+  (and (keyword? k) (= "prop" (namespace k))))
+
+(defn entry-name
+  "Returns the name of the attribute key `k` as Solid's `spread` reads it: a keyword's name,
+  except that `:prop/my-value` is `prop:myValue`."
+  [k]
+  (cond
+    (property-key? k) (str "prop:" (prop-name (name k)))
+    (keyword? k) (name k)
+    :else (str k)))
+
 (defn attr-name
   "Returns the name under which Solid's `spread` sets the attribute or prop `n`, written as a
   keyword's name (`on-click`, `stroke-width`) or as a JavaScript prop name (`onClick`,
@@ -42,6 +57,7 @@
   [n]
   (cond
     (= "children" n) nil
+    (str/starts-with? n "prop:") n
     (str/starts-with? n "on-") (prop-name n)
     (re-matches #"on[A-Z].*" n) n
     (dom-properties n) (dom-properties n)

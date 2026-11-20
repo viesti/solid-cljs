@@ -377,5 +377,5 @@
        (stop)
        (.. (expect @clicks) (toBe 1))
        (.. (expect (count recorded)) (toBe 1))
-       (.. (expect (.-name (first recorded))) (toBe "click"))
-       (.. (expect (.-writes (first recorded))) (toBe 1))))))
+       (.. (expect (.-name ^js (first recorded))) (toBe "click"))
+       (.. (expect (.-writes ^js (first recorded))) (toBe 1))))))

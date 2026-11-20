@@ -213,3 +213,9 @@
                       (is (nil? (.-body response)) "a redirect has no body")))
              (.catch (fn [e] (is false (str e))))
              (.finally done))))
+
+(deftest properties-on-the-server
+  (is (= "<input type=\"checkbox\">" (html ($ :input {:type :checkbox :prop/indeterminate true})))
+      "a prop keyword renders nothing on the server")
+  (is (= "<div title=\"t\"></div>" (html ($ :div {:& {:prop/items #js [1] :title "t"}})))
+      "nor in a spread"))

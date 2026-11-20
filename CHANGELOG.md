@@ -19,6 +19,7 @@ app needs.
 - Attribute names other than events are passed to the DOM as written (`:tabindex`,
   `:stroke-width`), and numeric styles get `px` by CSS property.
 - Directives always receive an accessor.
+- Keys in the `prop` namespace, such as `:prop/rows`, set DOM properties, as Solid's `prop:` does.
 - `s/for`, `s/index` and `s/repeat` inside `$` are created in place, as Solid's compiler creates
   `<For>`, so a live server component in a hydratable build updates them.
 - A `defui` component creates its element when it is called, as a component compiled from JSX

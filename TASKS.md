@@ -274,8 +274,11 @@ compiler's runtime helpers and wire constants. Work in this order:
    function gets an in-process channel that rejects on abort. `defserverfn` takes `:meta`, and
    `solid.server-functions/invoke` takes an options map. Test: `per-call-options` in
    test/solid/server_functions_test.cljs, whose fetch stub now rejects an aborted signal.
-3. The `prop:` attribute namespace in `$`, which sets a DOM property, as custom elements need.
-   `:prop/value` becomes the attribute `value` today.
+3. The `prop:` attribute namespace — done. `:prop/page-size` sets the property `pageSize`:
+   once when the value is a literal, in an effect otherwise, and nothing on the server, as
+   Solid's compiler does. Spread maps pass it to Solid's `spread` as `prop:pageSize`, and server
+   spreads leave it out. Tests: "Keywords in the prop namespace set DOM properties" in
+   test/vitest/custom_elements.cljs and `properties-on-the-server` in test/solid/ssr_test.cljs.
 4. Live data from server functions: `{:live true}` and `{:broadcast true}` on `defserverfn`,
    for functions that return an async iterable of values, each encoded on its own.
 5. Forms that work without JavaScript: a server function's form-post URL (`.url`,
@@ -298,7 +301,7 @@ gap above, but it is faster for large payloads and has extensible type handlers.
 
 ### Status
 
-Steps 1 to 10 are done. Step 11 is in progress: items 1 and 2 are done.
+Steps 1 to 10 are done. Step 11 is in progress: items 1 to 3 are done.
 
 ### Deferred
 

@@ -592,7 +592,7 @@
   in JavaScript."
   [src]
   (if (map? src)
-    (for [[k v] src] [(if (keyword? k) (name k) (str k)) v])
+    (for [[k v] src] [(props/entry-name k) v])
     (let [^js o (spread-source src)]
       (for [n (js/Object.keys o)] [n (unchecked-get o n)]))))
 
@@ -638,6 +638,7 @@
                :when (and attr
                           (not (contains? explicit attr))
                           (not (re-matches #"on[A-Z].*" attr))
+                          (not (.startsWith attr "prop:"))
                           (not (#{"ref" "innerHTML" "textContent" "innerText"} attr)))]
            (case attr
              "class" (-ssr-class v)

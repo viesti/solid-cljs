@@ -304,6 +304,15 @@ The `:class` attribute supports multiple formats:
          :disabled @is-disabled?}}
 ```
 
+A key in the `prop` namespace sets the element's DOM property instead of an attribute, as
+Solid's `prop:` does, which custom elements taking objects need. The name is camelCased, and
+the server renders nothing for it:
+
+```clojure
+($ :data-grid {:prop/rows @rows :prop/page-size 20})
+($ :input {:type :checkbox :prop/indeterminate @partial?})
+```
+
 ### Rendering
 
 Conditional rendering with `if` and `when`, via [<Show> component](https://docs.solidjs.com/reference/components/show)
