@@ -25,34 +25,26 @@
 (defn- asset [dev-path production-path]
   (if ^boolean goog.DEBUG dev-path production-path))
 
-(defn- page-start []
-  (str "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
-       "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-       "<title>solid-cljs demo</title><link rel=\"icon\" href=\"data:,\">"
-       "<link rel=\"stylesheet\" href=\"" (asset "/src/demo/style.css" "/assets/style.css") "\">"
-       (s/hydration-script) "</head><body><div id=\"root\">"))
-
-(def ^:private page-end
-  (str "</div><script type=\"module\" src=\"" (asset "/src/demo/client.cljs" "/assets/app.js")
-       "\"></script></body></html>"))
+(def ^:private document
+  "The page around the app, which renders where :solid/content is."
+  [:html {:lang "en"}
+   [:head
+    [:meta {:charset "UTF-8"}]
+    [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+    [:title "solid-cljs demo"]
+    [:link {:rel "icon" :href "data:,"}]
+    [:link {:rel "stylesheet" :href (asset "/src/demo/style.css" "/assets/style.css")}]
+    (server/raw (s/hydration-script))]
+   [:body
+    [:div#root :solid/content]
+    [:script {:type "module" :src (asset "/src/demo/client.cljs" "/assets/app.js")}]]])
 
 (defn- render-page
-  "Returns a response that streams the page for `request`, with the name from its cookie."
+  "Returns a promise of the page for `request`, with the name from its cookie."
   [^js request]
-  (let [user-name (get (s/parse-cookie-header (or (.get (.-headers request) "cookie") "")) "name")
-        encoder (js/TextEncoder.)]
-    (js/Response.
-     (js/ReadableStream.
-      #js {:start (fn [controller]
-                    (.enqueue controller (.encode encoder (page-start)))
-                    (s/pipe (server/provide-request-event
-                             (server/create-request-event request)
-                             #(s/render-to-stream ($ app {:user-name user-name}) {:plugins [sc/plugin]}))
-                            #js {:write (fn [chunk] (.enqueue controller (.encode encoder chunk)) true)
-                                 :end (fn []
-                                        (.enqueue controller (.encode encoder page-end))
-                                        (.close controller))}))})
-     #js {:headers #js {"content-type" "text/html; charset=utf-8"}})))
+  (let [user-name (get (s/parse-cookie-header (or (.get (.-headers request) "cookie") "")) "name")]
+    (server/render-to-response request ($ app {:user-name user-name})
+                               {:plugins [sc/plugin] :document document})))
 
 (def handler
   "The Hono app, the default export of the server entry."

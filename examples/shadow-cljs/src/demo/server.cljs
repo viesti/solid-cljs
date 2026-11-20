@@ -16,18 +16,19 @@
 
 (def ^:private port (or js/process.env.PORT 3000))
 
-(defn- page-start []
-  (str "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\">"
-       "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-       "<title>solid-cljs demo</title><link rel=\"icon\" href=\"data:,\">"
-       "<link rel=\"stylesheet\" href=\"" (if production? "/assets/style.css" "/css/style.css") "\">"
-       (s/hydration-script)
-       "</head><body><div id=\"root\">"))
-
-(def ^:private page-end
-  (str "</div><script type=\"module\" src=\""
-       (if production? "/assets/app.js" "/js/main.js")
-       "\"></script></body></html>"))
+(def ^:private document
+  "The page around the app, which renders where :solid/content is."
+  [:html {:lang "en"}
+   [:head
+    [:meta {:charset "UTF-8"}]
+    [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
+    [:title "solid-cljs demo"]
+    [:link {:rel "icon" :href "data:,"}]
+    [:link {:rel "stylesheet" :href (if production? "/assets/style.css" "/css/style.css")}]
+    (server/raw (s/hydration-script))]
+   [:body
+    [:div#root :solid/content]
+    [:script {:type "module" :src (if production? "/assets/app.js" "/js/main.js")}]]])
 
 (defn- web-request
   "Returns a fetch `Request` for the Node.js request `req`, aborted with `signal`."
@@ -52,17 +53,12 @@
         (.pipe readable res))
       (.end res))))
 
-(defn- render-page!
-  "Streams the page for `request` to `res`, with the name from its cookie."
-  [^js request ^js res]
+(defn- render-page
+  "Returns a promise of the page for `request`, with the name from its cookie."
+  [^js request]
   (let [user-name (get (s/parse-cookie-header (or (.get (.-headers request) "cookie") "")) "name")]
-    (.writeHead res 200 #js {"content-type" "text/html; charset=utf-8"})
-    (.write res (page-start))
-    (s/pipe (server/provide-request-event
-             (server/create-request-event request)
-             #(s/render-to-stream ($ app {:user-name user-name}) {:plugins [sc/plugin]}))
-            #js {:write (fn [chunk] (.write res chunk) true)
-                 :end #(.end res page-end)})))
+    (server/render-to-response request ($ app {:user-name user-name})
+                               {:plugins [sc/plugin] :document document})))
 
 (def ^:private content-types
   {".js" "text/javascript" ".css" "text/css" ".map" "application/json"})
@@ -92,7 +88,8 @@
           (.then #(send! res %)))
 
       (= "/" pathname)
-      (render-page! (web-request req (.-signal controller)) res)
+      (-> (render-page (web-request req (.-signal controller)))
+          (.then #(send! res %)))
 
       production?
       (serve-file! pathname res)

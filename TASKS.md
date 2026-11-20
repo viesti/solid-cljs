@@ -260,9 +260,14 @@ From a review that compared the exports of `solid-js` and `@solidjs/web` (and it
 server-functions entries) with what solid-cljs references, leaving out Solid's internals, the
 compiler's runtime helpers and wire constants. Work in this order:
 
-1. A response from a page render: wrap `createSSRResponse`, which applies the status, headers
-   and redirects that `s/http-status`, `s/http-header` and `s/redirect` set during the render.
-   Use it in the shadow-cljs and Clojurific example servers, which write a fixed 200 today.
+1. A response from a page render — done. `solid.server/render-to-response` wraps
+   `createSSRResponse`; a `Location` header set during the render makes a redirect (`s/redirect`
+   returns a `Response` for server functions and does nothing in a render). Its `:document`
+   option is hiccup, turned into HTML by the new `solid.server/html`, with `solid.server/raw`
+   for the hydration script. Solid has no hook for HTML after the render, so the wrapper writes
+   the document's end through a proxy of the writable before the stream ends. The shadow-cljs and
+   Clojurific example servers use it. Tests: `hiccup-html`, `page-responses` and
+   `page-redirects` in test/solid/ssr_test.cljs.
 2. Per-call options for server functions: Solid's `invoke` (abort signal, priority) and
    `withMeta` (metadata for `prepareRequest`, such as auth headers). The browser side of
    `defserverfn` wraps the reference for EDN, so neither reaches it yet.
@@ -290,7 +295,7 @@ gap above, but it is faster for large payloads and has extensible type handlers.
 
 ### Status
 
-Steps 1 to 10 are done. Step 11 is not started.
+Steps 1 to 10 are done. Step 11 is in progress: item 1 is done.
 
 ### Deferred
 
