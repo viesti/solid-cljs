@@ -268,9 +268,12 @@ compiler's runtime helpers and wire constants. Work in this order:
    the document's end through a proxy of the writable before the stream ends. The shadow-cljs and
    Clojurific example servers use it. Tests: `hiccup-html`, `page-responses` and
    `page-redirects` in test/solid/ssr_test.cljs.
-2. Per-call options for server functions: Solid's `invoke` (abort signal, priority) and
-   `withMeta` (metadata for `prepareRequest`, such as auth headers). The browser side of
-   `defserverfn` wraps the reference for EDN, so neither reaches it yet.
+2. Per-call options for server functions — done. The EDN wrapper shares the reference's
+   metadata object and forwards its invocation channel (`Symbol.for` keys), so Solid's `invoke`
+   and `withMeta` work on a `defserverfn` in the browser. On the server, the directly called
+   function gets an in-process channel that rejects on abort. `defserverfn` takes `:meta`, and
+   `solid.server-functions/invoke` takes an options map. Test: `per-call-options` in
+   test/solid/server_functions_test.cljs, whose fetch stub now rejects an aborted signal.
 3. The `prop:` attribute namespace in `$`, which sets a DOM property, as custom elements need.
    `:prop/value` becomes the attribute `value` today.
 4. Live data from server functions: `{:live true}` and `{:broadcast true}` on `defserverfn`,
@@ -295,7 +298,7 @@ gap above, but it is faster for large payloads and has extensible type handlers.
 
 ### Status
 
-Steps 1 to 10 are done. Step 11 is in progress: item 1 is done.
+Steps 1 to 10 are done. Step 11 is in progress: items 1 and 2 are done.
 
 ### Deferred
 

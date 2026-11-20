@@ -740,6 +740,20 @@ and `{:method :get}` marks a function that only reads, so that its calls can be 
 `solid.server-functions/configure-client` and `solid.server-functions.server/configure-server`
 pass options to Solid's runtime, such as `:base` for another path.
 
+`{:meta {...}}` declares metadata that the client's `:prepare-request` receives as
+`(.-meta context)`, for policies such as adding an auth header to some functions.
+`solid.server-functions/invoke` calls a server function with per-call options, such as a
+`:signal` whose abort rejects the call and cancels its request:
+
+```clojure
+(defserverfn charge-card {:meta {:requires-auth true}} [amount] ...)
+
+(sf/configure-client {:prepare-request (fn [init ^js context]
+                                         (if (.. context -meta -requiresAuth) (with-token init) init))})
+
+(sf/invoke get-user {:signal (.-signal controller)} id)
+```
+
 With `:solid/render` set to `:dom` for the browser and `:server` for the server, the browser
 build leaves the function bodies out. A build without the option, such as Clojurific's, which
 compiles each namespace once for both, compiles both sides and chooses with Solid's `isServer`

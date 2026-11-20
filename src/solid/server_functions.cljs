@@ -18,20 +18,35 @@
   "True in Solid's server build."
   sw/isServer)
 
-(defn- with-method [f {:keys [method]}]
-  (if (= :get method) (sf/GET f) f))
+(def ^:private metadata-key
+  "The key of a server function's metadata, which `withMeta` and `GET` write."
+  (js/Symbol.for "solid.ServerFunctionMetadata"))
+
+(defn- declare-reference
+  "Declares the reference `f` as `opts` ask: as a `GET`, and with the metadata `:meta`."
+  [f {:keys [method meta]}]
+  (cond-> (if (= :get method) (sf/GET f) f)
+    meta (sf/withMeta (js-options meta))))
 
 (defn -edn-caller
   "Returns a function that calls the server function reference `reference` with its
-  arguments as EDN, and resolves to the EDN result read back."
+  arguments as EDN, and resolves to the EDN result read back. It shares the reference's
+  metadata and invocation channel, so Solid's `invoke` and `withMeta` work on it."
   [reference]
-  (fn [& args]
-    (.then (reference (pr-str (vec args))) reader/read-string)))
+  (let [encode #(pr-str (vec %))
+        caller (fn [& args]
+                 (.then (reference (encode args)) reader/read-string))]
+    (unchecked-set caller metadata-key (unchecked-get reference metadata-key))
+    (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
+                   (fn [args options]
+                     (.then ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode args)] options)
+                            reader/read-string)))
+    caller))
 
 (defn -reference
   "Returns the browser side of the server function `id`."
   [id {:keys [encoding] :as opts}]
-  (let [reference (with-method (sf/createServerReference id) opts)]
+  (let [reference (declare-reference (sf/createServerReference id) opts)]
     (if (= :js encoding) reference (-edn-caller reference))))
 
 (defn- edn-result
@@ -45,6 +60,25 @@
 (defn- name-of [id]
   (subs id (inc (.lastIndexOf id "/"))))
 
+(defn- in-process!
+  "Gives `f`, which server code calls directly, the metadata of `reference` and an invocation
+  channel, so that Solid's `invoke` calls it in process. A `:signal` that aborts rejects the
+  call, as it would over HTTP, though `f` runs on."
+  [f reference]
+  (unchecked-set f metadata-key (unchecked-get reference metadata-key))
+  (unchecked-set f sf/SERVER_FUNCTION_INVOKE
+                 (fn [args ^js options]
+                   (let [^js signal (some-> options .-signal)]
+                     (cond
+                       (nil? signal) (.apply f nil args)
+                       (.-aborted signal) (js/Promise.reject (.-reason signal))
+                       :else (js/Promise.race
+                              #js [(js/Promise.resolve (.apply f nil args))
+                                   (js/Promise. (fn [_ reject]
+                                                  (.addEventListener signal "abort" #(reject (.-reason signal))
+                                                                     #js {:once true})))])))))
+  f)
+
 (defn -register
   "Registers `f` as the server function `id` for `handle-request`, and returns `f`, which
   server code calls directly."
@@ -55,11 +89,18 @@
                       (-> (js/Promise.resolve (apply f (reader/read-string edn-args)))
                           (.then edn-result))))]
     ;; As a compiled "use server" function does, so that GET can declare it
-    (with-method (sf/createServerReference (sf/registerServerReference id transport (name-of id))) opts)
-    f))
+    (in-process! f (declare-reference (sf/createServerReference (sf/registerServerReference id transport (name-of id)))
+                                      opts))))
 
 (defn configure-client
   "Configures how the browser calls server functions: `:base` (the path or URL of the
   handler), `:prepare-request` and other options of Solid's `configureServerFunctionsClient`."
   [opts]
   (sf/configureServerFunctionsClient (js-options opts)))
+
+(defn invoke
+  "Calls the server function `f` once with `args` and the per-call options `opts`: `:signal`,
+  an `AbortSignal` whose abort rejects the call and cancels its request, `:keepalive` and
+  `:priority`. Solid's `invoke`."
+  [f opts & args]
+  (apply sf/invoke f (js-options opts) args))

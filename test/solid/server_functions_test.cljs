@@ -32,7 +32,7 @@
 ;; with the global fetch, which goes to the handler here, with the Origin a browser would send.
 (def requests (atom []))
 
-(defn- send [address init]
+(defn- send-now [address init]
   (let [url (str (js/URL. (str address) "http://localhost"))
         headers (js/Headers. (.-headers init))]
     (.set headers "origin" "http://localhost")
@@ -40,6 +40,12 @@
         (.then (fn [response]
                  (swap! requests conj [url (.-status response) (.get (.-headers response) "set-cookie")])
                  response)))))
+
+(defn- send [address ^js init]
+  (if-let [^js signal (some-> init .-signal (as-> s (when (.-aborted s) s)))]
+    ;; As fetch does with an aborted signal
+    (js/Promise.reject (.-reason signal))
+    (send-now address init)))
 
 (set! (.-fetch js/globalThis) send)
 
@@ -72,3 +78,34 @@
                            (.then (fn [_] (is false "should have rejected"))
                                   (fn [e] (is (= "refused: :quota" (.-message e)) "safe errors keep their message")))))
                (.then done done)))))
+
+(deftest per-call-options
+  (async done
+         (let [award (browser-reference "solid.server-functions-test/award-points")
+               aborted (js/AbortSignal.abort)
+               metas (atom [])]
+           (is (= {:user :ann :points 11 :tags #{:new}} (sf/invoke award-points {} :ann 1))
+               "invoke calls a server function in process on the server")
+           (-> (sf/invoke award-points {:signal aborted} :ann 1)
+               (.then (fn [_] (is false "an aborted in-process call should reject"))
+                      (fn [e] (is (= "AbortError" (.-name e)) "an aborted signal rejects in process")))
+               (.then #(step (fn [] (client/invoke award #js {:signal (.-signal (js/AbortController.))} :ann 2))
+                             (fn [r] (is (= {:user :ann :points 12 :tags #{:new}} r) "invoke passes EDN through"))))
+               (.then (fn []
+                        (reset! requests [])
+                        (-> (client/invoke award #js {:signal aborted} :ann 3)
+                            (.then (fn [_] (is false "an aborted call should reject"))
+                                   (fn [e]
+                                     (is (= "AbortError" (.-name e)) "an aborted signal rejects the call")
+                                     (is (empty? @requests) "and sends no request"))))))
+               (.then (fn []
+                        (client/configureServerFunctionsClient
+                         #js {:prepareRequest (fn [init ^js context] (swap! metas conj (.-meta context)) init)})
+                        (client/withMeta award #js {:requiresAuth true})
+                        (step #(award :ann 4)
+                              (fn [_]
+                                (is (true? (some-> ^js (last @metas) .-requiresAuth))
+                                    "metadata written on the EDN function reaches prepareRequest")))))
+               (.finally (fn []
+                           (client/configureServerFunctionsClient #js {:prepareRequest (fn [init _] init)})
+                           (done)))))))

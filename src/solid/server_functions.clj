@@ -12,8 +12,10 @@
   chooses at runtime, so the browser code contains `body`. The server answers calls with
   `solid.server-functions.server/handle-request`.
 
-  `opts` may set `:method :get`, for calls that read and may be cached, and `:encoding :js`,
-  which passes arguments and results to Solid's serializer as they are instead of as EDN.
+  `opts` may set `:method :get`, for calls that read and may be cached, `:encoding :js`,
+  which passes arguments and results to Solid's serializer as they are instead of as EDN, and
+  `:meta`, a map that `:prepare-request` of `configure-client` receives as `(.-meta context)`,
+  with camelCase keys. `invoke` calls it with per-call options, such as an abort signal.
   ```clojure
   (defserverfn get-user {:method :get} [id]
     (db/find-user id))
