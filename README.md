@@ -154,6 +154,16 @@ instead (see Hot reloading), set in a `cljs.edn` profile for the dev server:
 (s/render ($ app) (js/document.getElementById "root"))
 ```
 
+The examples folder has the same app built three ways. A Node.js server renders the page and the
+browser hydrates it, and a todo list kept in SQLite is shared by everyone who opens the page, so
+changes made in one window appear in the others. The app uses server functions, a live server
+component with slots, an optimistic add and a cookie, and each example builds a production
+server.
+
+- [examples/shadow-cljs](examples/shadow-cljs) uses solid-cljs with shadow-cljs and Vite.
+- [examples/clojurific](examples/clojurific) uses solid-cljs with Clojurific and a Hono server.
+- [examples/squint](examples/squint) uses Squint with Solid's own compiler and Vite plugin.
+
 ## API
 
 Functions and macros below are a part of `solid.core` namespace:
