@@ -6,7 +6,7 @@
               ["@solidjs/h" :default h]
               [solid.compiler :as sc]
               [solid.props :as props]
-              ["solid-js/refresh" :as refresh]))
+              ["solid-js/refresh" :as solid-refresh]))
 
 (defn element?
       "Returns true if x is an element created with `$`."
@@ -448,14 +448,14 @@
             _ (set! (.-disposers state) #js [])
             ;; Only components with Solid's development marker follow updates through a proxy
             _ (unchecked-set f solid/$DEVCOMP true)
-            registry (refresh/$$registry)
-            proxy (refresh/$$component registry id f #js {:location (or loc js/undefined)
+            registry (solid-refresh/$$registry)
+            proxy (solid-refresh/$$component registry id f #js {:location (or loc js/undefined)
                                                            :signature (or signature js/undefined)})
             hot #js {:data (or data js/undefined)
                      :accept (fn [& _])
                      :dispose (fn [cb] (.push (.-disposers state) cb))
                      :invalidate (fn [] (.reload js/location))}]
-        (refresh/$$refresh "standard" hot registry)
+        (solid-refresh/$$refresh "standard" hot registry)
         proxy)))
 
 (defn -component
