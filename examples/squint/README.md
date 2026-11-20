@@ -1,14 +1,17 @@
 # Solid 2 with Squint
 
-A small app written in [Squint](https://github.com/squint-cljs/squint) that uses Solid 2 directly:
-a counter, a todo list and an async greeting under `Loading`. Squint compiles `#jsx` literals to
-JSX, and Solid's own JSX compiler compiles that JSX, so the app gets the same template cloning and
-fine-grained updates as a JavaScript Solid app.
+An app written in [Squint](https://github.com/squint-cljs/squint) that uses Solid 2 directly. The
+server renders the page and the browser hydrates it, and a todo list kept in SQLite is shared by
+everyone who opens the page: open it in two windows and changes made in one appear in the other.
+Below the shared list are a counter, a todo list kept in the browser and an async greeting under
+`Loading`. Squint compiles `#jsx` literals to JSX, and Solid's own compiler compiles that JSX and
+the `"use server"` functions, so the app is set up as a JavaScript Solid app would be.
 
 ## Running it
 
-Needs Node.js 22 and the [Clojure CLI](https://clojure.org/guides/install_clojure), which
-Squint uses to resolve the git dependency in squint.edn.
+Needs Node.js 22.13 or later (for `node:sqlite`) and the
+[Clojure CLI](https://clojure.org/guides/install_clojure), which Squint uses to resolve the git
+dependency in squint.edn.
 
 ```bash
 cd examples/squint
@@ -16,15 +19,15 @@ yarn install
 yarn dev
 ```
 
-Open [localhost:3000](http://localhost:3000). `yarn build` writes a production bundle to `dist/`,
-and `yarn preview` serves it. The dev server also starts Squint's nREPL server on port 1339, which
-evaluates forms in the open page.
+Open [localhost:3000](http://localhost:3000). The todos are stored in todos.db, which `TODOS_DB`
+can point elsewhere. `yarn build` writes the browser bundle to dist/client and a Node.js server to
+dist/server, and `yarn start` runs it. The dev server also starts Squint's nREPL server on port
+1339, which evaluates forms in the open page.
 
 ## How it is set up
 
-- **squint.edn** compiles `src/` to `.jsx` files in `out/` and names `app.core` as the entry
-  namespace, which the Squint Vite plugin adds to index.html. Its `:deps` pulls the
-  `solid.squint` namespace from the solid-cljs repository at a pinned commit:
+- **squint.edn** compiles `src/` to `.jsx` files in `out/`. Its `:deps` pulls the `solid.squint`
+  namespace from the solid-cljs repository at a pinned commit:
   ```clojure
   :deps {com.github.roman01la/solid-cljs
          {:git/url "https://github.com/viesti/solid-cljs"
@@ -35,12 +38,28 @@ evaluates forms in the open page.
   `solid.squint`, since Squint compiles every file on a dependency's paths. To work on
   `solid.squint` itself, replace the coordinate with `{:local/root "../../squint"}`.
 - **vite.config.mjs** runs the Squint plugin (`squint-cljs/vite`) and Solid's plugin
-  (`@solidjs/vite-plugin`). Solid's plugin compiles every `.jsx` file, including Squint's output.
-- **src/app/core.cljs** has the components.
+  (`@solidjs/vite-plugin`) in its start mode with `ssr: true`. The Solid plugin renders the page on
+  the server in development, compiles `"use server"` functions (`serverFunctions`, with
+  `components` for server components and a filter that includes `out/`), and builds a Node.js
+  server (`start.nodeServer`). The `dev` and `build` scripts run `squint compile` first, since the
+  Solid plugin checks that the app module exists when it starts.
+- **src/app/app.cljs** has the components and default-exports the root component, and
+  **src/app/document.cljs** default-exports the document around it.
+- **src/app/todos.cljs** has the server functions and the shared list, written as
+  `"use server"` functions. A string as the first form of a Squint function body becomes a
+  directive, so `(defn ^:async add-todo [title] "use server" ...)` is a server function.
+  `SharedList` is a server component wrapped in Solid's `broadcast`, which renders it once for
+  every viewer and updates it as the todos change. The functions import **src/app/db.cljs**
+  inside their bodies, which Solid's compiler leaves out of the browser build, so the browser
+  never loads `node:sqlite`.
 - **solid.squint** makes signals work with `deref`, `reset!` and `swap!`, wraps
   `createEffect` so that an effect callback may return any value, and wraps `createStore` so
   that a draft function's return value is ignored unless it is `(s/replacement v)`. The todo
-  list keeps its items in such a store.
+  list in the browser keeps its items in such a store.
+
+The shared list's render is shared by every viewer, so Solid's compiler refuses a render that
+reads a binding of the server function's body. It reads the database through a module-level
+subscribe function instead.
 
 Solid's `action` takes a generator function, which Squint writes with `^:gen` and `js-yield`,
 so actions need no helper:
@@ -84,9 +103,8 @@ return <li><span class={({"done": props.done})}>{props.title}</span><button onCl
 
 ## Hot reloading
 
-The Squint plugin re-runs a changed namespace and then calls its `^:dev/after-load` functions.
-`defonce` keeps its value across reloads, so app.core keeps the disposer of the rendered app in a
-`defonce` and re-renders in an after-load function, as the solid-cljs playground does.
+Solid's plugin hot reloads changed components through its refresh transform, keeping the state of
+the components around them, so the app needs no `^:dev/after-load` function.
 
 After removing a top-level definition, restart the dev server. The plugin keeps each namespace's
 analysis between compiles and otherwise still exports the removed name, which fails in the
@@ -97,7 +115,7 @@ browser with "Export ... is not defined in module".
 solid-cljs runs on ClojureScript, and its `$` macro plays the part of Solid's JSX compiler: it
 compiles elements to templates and components to `createComponent` calls, and wraps reactive
 expressions in functions. Here, Solid's own compiler does that work, so there is no macro layer to
-keep in step with Solid. The production bundle of this app is 75 kB (29 kB gzipped).
+keep in step with Solid.
 
 The solid-cljs source cannot be shared with Squint as it stands. Its macros are written in Clojure
 (`.clj` files) for the ClojureScript compiler, and its runtime relies on ClojureScript's

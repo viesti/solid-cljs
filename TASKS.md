@@ -229,9 +229,18 @@ Sub-steps:
    warns `IMPORT_IS_UNDEFINED` for browser-only imports of Solid's server modules, which is
    expected and harmless. The library commit `de8a462` accidentally deleted the old
    core.cljs and index.html, which this example replaces.
-3. Squint example: solid-cljs macros are not available, so use Solid's own `ssr` and
-   `serverFunctions` options in `@solidjs/vite-plugin`. Check whether Squint can emit the
-   `"use server"` directive that Solid's compiler looks for.
+3. Squint example — done, with every feature. It uses Solid's own pieces: the Vite plugin's
+   start mode (`ssr: true`, `serverFunctions` with `components`, `start.nodeServer`), with the
+   app and document modules in out/ as default exports (`(def default App)`). A string as the
+   first form of a Squint function body becomes a `"use server"` directive. The server
+   functions filter must include `out/**/*.jsx`, and `squint compile` must run before Vite,
+   since the plugin checks that the app module exists. Server functions import app.db
+   dynamically, so the browser never loads `node:sqlite`. Solid's production compiler refuses a
+   `broadcast` render that reads a binding of the function's body, so the list subscribes
+   through a module-level function. The user name comes from a `GET` server function read in a
+   memo. Changing vite.config.mjs while the dev server runs crashes it (Squint's nREPL port is
+   taken on restart). Checked by hand in two windows in development (including a hot reload that
+   kept another component's state) and in production; the browser bundle has no server code.
 4. READMEs of the examples and the main README's examples section.
 5. Pin the commits and check the three examples, development and production.
 
@@ -244,7 +253,7 @@ The formatting commit changes whitespace only (`git diff -w` is empty).
 
 ### Status
 
-Steps 1 to 8 and 10 are done. Step 9 is in progress: sub-steps 1 and 2 are done.
+Steps 1 to 8 and 10 are done. Step 9 is in progress: sub-steps 1 to 3 are done.
 
 ### Deferred
 

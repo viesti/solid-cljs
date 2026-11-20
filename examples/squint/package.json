@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "squint compile && vite",
+    "build": "squint compile && vite build",
+    "start": "node dist/server/node.js"
   },
   "dependencies": {
     "@solidjs/web": "^2.0.3",
