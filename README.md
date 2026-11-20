@@ -778,9 +778,9 @@ server through async sources, such as a memo over `s/from` with a subscribe func
 
 The browser renders it with `sc/server-component` as before, and reconnects when the connection
 drops. `{:broadcast true}` declares a live component whose markup is the same for every viewer,
-so viewers calling it with the same arguments share one render on the server. A slot placed
-inside a value that changes stops that value from updating, so place slots beside it, as the
-editor is placed beside the title here.
+so viewers calling it with the same arguments share one render on the server. Create async
+sources such as the memo in the component body. Markup that re-renders and creates one stops
+updating and keeps the markup it last sent, as does an attribute that calls a slot.
 
 The server calls `(sc/configure-server!)` once, which makes `handle-request` answer server
 components with frame streams. A page rendered on the server renders its server components

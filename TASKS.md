@@ -166,8 +166,9 @@ Decisions and findings:
   leaves the server's subscription open.
 - Solid indexes a page's server-rendered frames once, on first use, so a second document in the
   same page is not adopted. The live adoption test has a file of its own for a fresh page.
-- A slot placed inside a live hole stops the hole from updating (`SSR_LIVE_HOLE_LATCHED`). The
-  README says to place slots beside changing values. Not tested: reconnects after a dropped
+- A live hole stops updating (`SSR_LIVE_HOLE_LATCHED`) when its re-run creates an async source,
+  or when a live attribute calls a slot. Keyed slots in the content of a live list keep
+  updating (checked in Node while planning step 9). Not tested: reconnects after a dropped
   connection and the `onstatus` hook.
 
 ### 9. Server features in the examples — not started
