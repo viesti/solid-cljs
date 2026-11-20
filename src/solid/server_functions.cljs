@@ -26,6 +26,19 @@
   "The key that brands a live server function's answer, which memos follow as a live source."
   (js/Symbol.for "solid.LiveSource"))
 
+(def ^:private edn-key
+  "The key that marks a function whose arguments travel as one EDN string."
+  (js/Symbol.for "solid.cljs.EdnArguments"))
+
+(defn- share-identity!
+  "Gives `f` the id, metadata and EDN mark of the reference `reference`, which Solid's helpers
+  that take a server function read."
+  [f reference edn?]
+  (set! (.-id f) (.-id reference))
+  (unchecked-set f metadata-key (unchecked-get reference metadata-key))
+  (when edn? (unchecked-set f edn-key true))
+  f)
+
 (defn- declare-reference
   "Declares the reference `f` as `opts` ask: live, broadcast to every viewer or as a `GET`,
   and with the metadata `:meta`."
@@ -67,7 +80,7 @@
   (let [encode #(pr-str (vec %))
         caller (fn [& args]
                  (.then (reference (encode args)) reader/read-string))]
-    (unchecked-set caller metadata-key (unchecked-get reference metadata-key))
+    (share-identity! caller reference true)
     (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
                    (fn [args options]
                      (.then ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode args)] options)
@@ -81,7 +94,7 @@
   (let [encode #(pr-str (vec %))
         caller (fn [& args]
                  (map-values (reference (encode args)) reader/read-string))]
-    (unchecked-set caller metadata-key (unchecked-get reference metadata-key))
+    (share-identity! caller reference true)
     (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
                    (fn [args options]
                      (map-values ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode args)] options)
@@ -112,8 +125,8 @@
   "Gives `f`, which server code calls directly, the metadata of `reference` and an invocation
   channel, so that Solid's `invoke` calls it in process. A `:signal` that aborts rejects the
   call, as it would over HTTP, though `f` runs on."
-  [f reference]
-  (unchecked-set f metadata-key (unchecked-get reference metadata-key))
+  [f reference edn?]
+  (share-identity! f reference edn?)
   (unchecked-set f sf/SERVER_FUNCTION_INVOKE
                  (fn [args ^js options]
                    (let [^js signal (some-> options .-signal)]
@@ -141,12 +154,17 @@
                           (.then #(map-values % pr-str))))
 
                     :else
-                    (fn [edn-args]
-                      (-> (js/Promise.resolve (apply f (reader/read-string edn-args)))
-                          (.then edn-result))))]
+                    (fn [& args]
+                      (if (and (= 1 (count args)) (string? (first args)))
+                        (-> (js/Promise.resolve (apply f (reader/read-string (first args))))
+                            (.then edn-result))
+                        ;; A form post: the arguments bound in its url, then the form's FormData
+                        (apply f args))))]
     ;; As a compiled "use server" function does, so that GET can declare it
-    (in-process! f (declare-reference (sf/createServerReference (sf/registerServerReference id transport (name-of id)))
-                                      opts))))
+    (in-process! f
+                 (declare-reference (sf/createServerReference (sf/registerServerReference id transport (name-of id)))
+                                    opts)
+                 (not= :js encoding))))
 
 (defn configure-client
   "Configures how the browser calls server functions: `:base` (the path or URL of the
@@ -160,3 +178,20 @@
   `:priority`. Solid's `invoke`."
   [f opts & args]
   (apply sf/invoke f (js-options opts) args))
+
+(defn action-url
+  "Returns the url a `<form method=\"post\">` posts to for the server function `f`, with
+  `bound-args`, which must be JSON-safe, in its query. Without JavaScript the browser posts the
+  form there, and the server calls `f` with the bound arguments, as JavaScript values, and then
+  the form's `FormData`. The server redirects back to the page, where
+  `solid.server-functions.server/flash` reads the outcome."
+  [f & bound-args]
+  (apply sf/serverFunctionActionUrl f (map clj->js bound-args)))
+
+(defn url
+  "Returns the url that a call of the server function `f` with `args` requests, for
+  `{:method :get}` functions, such as to preload it with `<link rel=\"preload\" as=\"fetch\">`."
+  [f & args]
+  (if (unchecked-get f edn-key)
+    (sf/serverFunctionUrl f (pr-str (vec args)))
+    (apply sf/serverFunctionUrl f args)))

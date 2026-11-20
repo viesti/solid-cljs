@@ -284,11 +284,16 @@ compiler's runtime helpers and wire constants. Work in this order:
    keeping the live source brand and passing `onstatus` through. Tests: `live-values` and
    `broadcast-values` in test/solid/server_functions_test.cljs. Not tested: a memo over a live
    server function in the browser, and reconnects.
-5. Forms that work without JavaScript: a server function's form-post URL (`.url`,
-   `serverFunctionActionUrl`), `createNoJSHandler`, and the flash-cookie helpers.
-6. `serverFunctionUrl`, the URL of a GET server function call, for preloading.
-7. `getServerFunctionInvocation` (whether a call is live or broadcast), which the examples
-   reach through interop to count viewers.
+5. Forms without JavaScript — done. `sf/action-url` wraps `serverFunctionActionUrl`. The EDN
+   transport treats a call that is not one string argument as a form post: the body gets the
+   bound arguments and the `FormData`, and its raw result goes to Solid's default no-JS
+   handler, which redirects back with a flash cookie. `sfs/flash` decodes it and
+   `sfs/clear-flash-cookie` removes it. The wrappers and the directly called function now carry
+   the reference's `id`. Test: `form-posts` in test/solid/server_functions_test.cljs.
+6. `sf/url` — done, wrapping `serverFunctionUrl`, with the arguments as EDN for EDN functions.
+   Tested in `form-posts`.
+7. `sfs/invocation` — done, wrapping `getServerFunctionInvocation`. Tested in
+   `server-function-calls`. The examples still call Solid's function through interop.
 8. `solid-js/attribution` (history, costs, feedback, why), as a namespace of its own.
 9. The primitives behind the boundary components: `createErrorBoundary`,
    `createLoadingBoundary`, `createRevealOrder`.
@@ -304,7 +309,7 @@ gap above, but it is faster for large payloads and has extensible type handlers.
 
 ### Status
 
-Steps 1 to 10 are done. Step 11 is in progress: items 1 to 4 are done.
+Steps 1 to 10 are done. Step 11 is in progress: items 1 to 7 are done.
 
 ### Deferred
 

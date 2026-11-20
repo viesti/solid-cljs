@@ -19,6 +19,9 @@
 (defserverfn remember-name [n]
   (s/respond {:name n} {:headers {"set-cookie" (s/serialize-cookie "name" n {:path "/"})}}))
 
+(defserverfn how-called []
+  (sfs/invocation))
+
 (defserverfn fail-safely [reason]
   (throw (s/safe-error (js/Error. (str "refused: " reason)))))
 
@@ -72,6 +75,11 @@
                                       (let [[url status cookie] (last @requests)]
                                         [(js/decodeURIComponent (subs url (inc (.lastIndexOf url "/")))) status cookie]))
                                    "and keeps its headers"))))
+               (.then #(step (fn [] ((browser-reference "solid.server-functions-test/how-called")))
+                             (fn [r]
+                               (is (= {:id "solid.server-functions-test/how-called" :live false :broadcast false} r)
+                                   "the invocation of the running server function")
+                               (is (nil? (sfs/invocation)) "and nil outside one"))))
                (.then #(step (fn [] ((browser-reference "solid.server-functions-test/request-path")))
                              (fn [r] (is (re-find #"^/_server" r) "the request event is in scope"))))
                (.then #(-> (fail :quota)
@@ -162,5 +170,34 @@
                         (doseq [^js it its] (.return it))
                         (wait 20)))
                (.then (fn [] (is (empty? (:listeners @price)) "the source closes with its last caller")))
+               (.catch (fn [e] (is false (str "rejected: " e))))
+               (.finally done)))))
+
+(defserverfn add-note [list-id form]
+  (str "saved " (.get form "text") " to " list-id))
+
+(deftest form-posts
+  (async done
+         (sfs/configure-server {:secret "a test secret"})
+         (let [action (sf/action-url add-note "inbox")
+               form (doto (js/FormData.) (.append "text" "hi"))]
+           (is (re-find #"^/_server/solid\.server-functions-test%2Fadd-note\?args=" action) "the form's url")
+           (is (re-find #"^/_server/data/solid\.server-functions-test%2Fread-count\?args="
+                        (sf/url (sf/-edn-caller (client/GET (client/createServerReference "solid.server-functions-test/read-count")))))
+               "a GET call's url, with EDN arguments")
+           (-> (sfs/handle-request
+                (js/Request. (str "http://localhost" action)
+                             #js {:method "POST" :body form
+                                  :headers #js {"origin" "http://localhost" "referer" "http://localhost/notes"
+                                                "sec-fetch-site" "same-origin" "sec-fetch-mode" "navigate"
+                                                "accept" "text/html"}}))
+               (.then (fn [^js response]
+                        (is (= 303 (.-status response)) "a form post redirects back")
+                        (is (= "http://localhost/notes" (.get (.-headers response) "location")))
+                        (let [cookie (first (.split (or (.get (.-headers response) "set-cookie") "") ";"))]
+                          (is (.startsWith cookie "flash=") "with the outcome in a flash cookie")
+                          (sfs/flash (js/Request. "http://localhost/notes" #js {:headers #js {"cookie" cookie}})))))
+               (.then (fn [flash]
+                        (is (= "saved hi to inbox" (:result flash)) "flash reads the outcome")))
                (.catch (fn [e] (is false (str "rejected: " e))))
                (.finally done)))))

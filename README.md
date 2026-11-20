@@ -775,6 +775,24 @@ every caller with the same arguments:
 (let [price (s/memo #(price-feed :abc))] ...)
 ```
 
+A form works without JavaScript when it posts to `solid.server-functions/action-url`, which
+may bind JSON-safe arguments. The server function then receives those arguments and the form's
+`FormData`, and Solid redirects back to the page with the outcome in a flash cookie, encrypted
+with the `:secret` of `configure-server`. The page reads it with
+`solid.server-functions.server/flash`. Return a value that JSON can encode from such a function:
+
+```clojure
+(defserverfn add-note [list-id form]
+  (notes/add! list-id (.get form "text")))
+
+($ :form {:method :post :action (sf/action-url add-note "inbox")}
+   ($ :input {:name "text"}) ($ :button "Add"))
+```
+
+`solid.server-functions/url` returns the url of a `{:method :get}` call, to preload it, and
+`solid.server-functions.server/invocation` tells a running server function whether it was
+called over a live connection and whether its answer is broadcast.
+
 With `:solid/render` set to `:dom` for the browser and `:server` for the server, the browser
 build leaves the function bodies out. A build without the option, such as Clojurific's, which
 compiles each namespace once for both, compiles both sides and chooses with Solid's `isServer`

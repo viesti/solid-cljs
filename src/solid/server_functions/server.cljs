@@ -22,3 +22,29 @@
   `configureServerFunctionsServer`, such as `:base` and `:csrf`."
   [opts]
   (sf/configureServerFunctionsServer (sfn/js-options opts)))
+
+(defn flash
+  "Returns a promise of the outcome of the form post that redirected to the request `request`,
+  read from its flash cookie, or of nil: a map of `:url`, `:input`, and `:result` or `:error`.
+  The cookie is encrypted with the `:secret` of `configure-server`. `clear-flash-cookie` is the
+  `Set-Cookie` value that removes it."
+  [^js request]
+  (.then (sf/decodeFlashCookie (.get (.-headers request) "cookie"))
+         (fn [^js submission]
+           (when submission
+             {:url (.-url submission)
+              :input (vec (.-input submission))
+              :result (.-result submission)
+              :error (.-error submission)}))))
+
+(defn clear-flash-cookie
+  "Returns the `Set-Cookie` value that removes the flash cookie once it has been read."
+  []
+  (sf/clearFlashCookie))
+
+(defn invocation
+  "Returns how the server function running now was called, or nil outside one: a map of `:id`,
+  `:live` (true for a live connection) and `:broadcast` (true when its answer is shared)."
+  []
+  (when-let [^js inv (sf/getServerFunctionInvocation)]
+    {:id (.-id inv) :live (boolean (.-live inv)) :broadcast (boolean (.-broadcast inv))}))
