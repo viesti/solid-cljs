@@ -948,6 +948,26 @@ creates, as Solid's compiler does, on the client and on the server:
           (js/document.getElementById "root"))
 ```
 
+`solid.router` wraps the router's API with ClojureScript data: route tables as vectors of maps,
+and options and navigation options as keyword maps. Its `use-params`, `use-location`,
+`use-navigate`, `use-search-params`, `query`, `action`, `use-submissions` and `revalidate`
+are the router's own:
+
+```clojure
+(require '[solid.router :as router])
+
+(def user-name (router/query (fn [id] (api/user-name id)) "user-name"))
+
+(defui user-page []
+  (let [params (router/use-params)
+        navigate (router/use-navigate)]
+    ($ :div ($ :h1 (user-name (.-id params)))
+       ($ :button {:on-click #(navigate "/")} "Home"))))
+
+(def app-router (router/router [{:path "/" :component home}
+                                {:path "/users/:id" :component user-page}]))
+```
+
 ## Code splitting
 
 `s/lazy` creates a component from a promise of its code, which renders under `s/loading` while

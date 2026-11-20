@@ -2,6 +2,7 @@
   (:require
    [solid.core :as s :refer [$ defui]]
    ["@solidjs/router" :refer [createRouter memoryHistory]]
+   [solid.router :as router]
    ["@solidjs/testing-library" :refer [render]]
    ["vitest" :refer [expect test]]))
 
@@ -38,3 +39,36 @@
                   (.. (expect (.-textContent (q "#page"))) (toBe "About page"))
                   (.. (expect (.getAttribute (q "#about") "aria-current")) (toBe "page"))
                   (.. (expect (.getAttribute (q "#home") "aria-current")) (toBe nil))))))))
+
+(def ^:private fetches (atom 0))
+
+(def ^:private user-name
+  (router/query (fn [id] (swap! fetches inc) (js/Promise.resolve (str "user " id " #" @fetches))) "user-name"))
+
+(defui user-page []
+  (let [params (router/use-params)
+        navigate (router/use-navigate)
+        label (s/memo #(user-name (.-id params)))]
+    ($ :div
+       (s/loading ($ :p "loading") ($ :p#user (label)))
+       ($ :button#next {:on-click #(navigate (str "/users/" (inc (js/parseInt (.-id params)))))} "next"))))
+
+(test
+ "solid.router: route maps, params, navigation and queries"
+ (fn []
+   (let [app-router (router/router [{:path "/" :component home}
+                                    {:path "/users/:id" :component user-page}]
+                                   {:history (router/memory-history "/users/1")})
+         c (.-container (render ($ app-router (fn [props] ($ :main (.-children ^js props))))))
+         q #(.querySelector c %)]
+     (-> (wait 30)
+         (.then (fn []
+                  (.. (expect (.-textContent (q "#user"))) (toBe "user 1 #1"))
+                  (.click (q "#next"))
+                  (wait 30)))
+         (.then (fn []
+                  (.. (expect (.-textContent (q "#user"))) (toBe "user 2 #2"))
+                  (router/revalidate "user-name")
+                  (wait 30)))
+         (.then (fn []
+                  (.. (expect (.-textContent (q "#user"))) (toBe "user 2 #3"))))))))

@@ -254,7 +254,7 @@ the examples' sources are separate projects, formatted with
 `clojure-lsp format --filenames squint/src:examples/shadow-cljs/src:examples/clojurific/src:examples/squint/src`.
 The formatting commit changes whitespace only (`git diff -w` is empty).
 
-### 11. Remaining Solid API — not started
+### 11. Remaining Solid API — done
 
 From a review that compared the exports of `solid-js` and `@solidjs/web` (and its frames and
 server-functions entries) with what solid-cljs references, leaving out Solid's internals, the
@@ -308,7 +308,11 @@ compiler's runtime helpers and wire constants. Work in this order:
 13. `sc/frame-applied-event` — done (a constant, untested).
     Tests for 9 to 12: "Boundary primitives, store keys and assets" in
     test/vitest/features.cljs and `server-observability` in test/solid/ssr_test.cljs.
-14. A `solid.router` namespace for `@solidjs/router` 2.0, beyond the link and form claims.
+14. `solid.router` — done: `router` from route maps, the histories, `pending-links`,
+    `intent-preload`, the `use-*` hooks, `query`, `action`, `use-action`, `use-submissions` and
+    `revalidate`. Test: "solid.router: route maps, params, navigation and queries" in
+    test/vitest/router.cljs. Not wrapped: `liveQuery`, `formAction` beyond `action`, the
+    file-system routes and the other preload strategies, which stay reachable through interop.
 15. `configureRefresh` — not wrapped. Its documentation says it is meant for bundler
     integrations, called once before any hot update, and solid-cljs's `:solid/refresh` plays
     that part itself.
@@ -318,7 +322,7 @@ gap above, but it is faster for large payloads and has extensible type handlers.
 
 ### Status
 
-Steps 1 to 10 are done. Step 11 is in progress: items 1 to 13 and 15 are done; 14 (router) is left.
+Steps 1 to 10 are done. Steps 1 to 11 are done.
 
 ### Deferred
 
