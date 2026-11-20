@@ -49,6 +49,8 @@ app needs.
 - Options for signals, memos and effects (`:owned-write`, `:unobserved`, `:lazy`, `:error`),
   and contexts without a default.
 - Server functions with `defserverfn` and `solid.server-functions.server/handle-request`.
+- A `defserverfn` may return `s/respond`, whose status and headers reach the browser while
+  its value travels as EDN. `s/respond` and `s/reload` take `:headers` as a map.
 - `mark-raw`, `until`, `repeat-map`, owner and hydration utilities, cookie helpers, and
   `[handler data]` event handlers.
 - Component names and source locations in Solid's diagnostics in development builds.

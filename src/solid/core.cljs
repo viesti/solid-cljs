@@ -1041,15 +1041,22 @@
   ([url] (sw/redirect url))
   ([url init] (sw/redirect url (if (map? init) (clj->js init) init))))
 
+(defn- response-init
+  "Converts a map of response options, such as `:status` and a `:headers` map, to Solid's."
+  [init]
+  (if (map? init)
+    (reactive-options (cond-> init (map? (:headers init)) (update :headers clj->js)))
+    init))
+
 (defn respond
   "Returns `value` with the response status and headers of `init`, for server functions."
   ([value] (sw/respond value))
-  ([value init] (sw/respond value (if (map? init) (reactive-options init) init))))
+  ([value init] (sw/respond value (response-init init))))
 
 (defn reload
   "Returns a response that tells the client to reload its data."
   ([] (sw/reload))
-  ([init] (sw/reload (if (map? init) (reactive-options init) init))))
+  ([init] (sw/reload (response-init init))))
 
 (defn serialize-cookie
   "Returns a `Set-Cookie` header value for the cookie `cookie-name`, with options such as

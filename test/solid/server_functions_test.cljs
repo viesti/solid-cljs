@@ -16,6 +16,9 @@
 (defserverfn request-path []
   (.-pathname (js/URL. (.-url (.-request (s/request-event))))))
 
+(defserverfn remember-name [n]
+  (s/respond {:name n} {:headers {"set-cookie" (s/serialize-cookie "name" n {:path "/"})}}))
+
 (defserverfn fail-safely [reason]
   (throw (s/safe-error (js/Error. (str "refused: " reason)))))
 
@@ -35,7 +38,7 @@
     (.set headers "origin" "http://localhost")
     (-> (sfs/handle-request (js/Request. url (js/Object.assign #js {} init #js {:headers headers})))
         (.then (fn [response]
-                 (swap! requests conj [url (.-status response)])
+                 (swap! requests conj [url (.-status response) (.get (.-headers response) "set-cookie")])
                  response)))))
 
 (set! (.-fetch js/globalThis) send)
@@ -56,6 +59,13 @@
                      (fn [r] (is (= {:user :ann :points 15 :tags #{:new}} r) "ClojureScript data round-trips")))
                (.then #(step (fn [] (count-ref))
                              (fn [r] (is (= 42 r) "a :get function answers over the transport"))))
+               (.then #(step (fn [] ((browser-reference "solid.server-functions-test/remember-name") "Ann"))
+                             (fn [r]
+                               (is (= {:name "Ann"} r) "a response's value travels as EDN")
+                               (is (= ["solid.server-functions-test/remember-name" 200 "name=Ann; Path=/"]
+                                      (let [[url status cookie] (last @requests)]
+                                        [(js/decodeURIComponent (subs url (inc (.lastIndexOf url "/")))) status cookie]))
+                                   "and keeps its headers"))))
                (.then #(step (fn [] ((browser-reference "solid.server-functions-test/request-path")))
                              (fn [r] (is (re-find #"^/_server" r) "the request event is in scope"))))
                (.then #(-> (fail :quota)

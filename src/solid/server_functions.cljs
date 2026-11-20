@@ -2,7 +2,8 @@
   "Server functions over Solid's server-functions runtime, which resolves to its server or
   browser module by the build's export conditions."
   (:require-macros [solid.server-functions])
-  (:require ["@solidjs/web/server-functions" :as sf]
+  (:require ["@solidjs/web" :as sw]
+            ["@solidjs/web/server-functions" :as sf]
             [cljs.reader :as reader]
             [solid.props :as props]))
 
@@ -29,6 +30,14 @@
   (let [reference (with-method (sf/createServerReference id) opts)]
     (if (= :js encoding) reference (-edn-caller reference))))
 
+(defn- edn-result
+  "Returns `result` as EDN. A response from `s/respond` keeps its status and headers, with its
+  value as EDN."
+  [result]
+  (if (sw/isResponseEnvelope result)
+    (sw/respond (pr-str (.-value result)) #js {:status (.-status result) :headers (.-headers result)})
+    (pr-str result)))
+
 (defn- name-of [id]
   (subs id (inc (.lastIndexOf id "/"))))
 
@@ -40,7 +49,7 @@
                     f
                     (fn [edn-args]
                       (-> (js/Promise.resolve (apply f (reader/read-string edn-args)))
-                          (.then pr-str))))]
+                          (.then edn-result))))]
     ;; As a compiled "use server" function does, so that GET can declare it
     (with-method (sf/createServerReference (sf/registerServerReference id transport (name-of id))) opts)
     f))
