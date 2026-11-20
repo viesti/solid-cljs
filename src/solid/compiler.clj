@@ -34,28 +34,28 @@
   [attrs]
   (if (map? attrs)
     (reduce-kv
-      (fn [m k v]
-        (let [k-name (if (keyword? k) (name k) (str k))]
-          (assoc m k
-                 (cond
-                   (symbol? k) `(fn [] ~v)
-                   (or (str/starts-with? k-name "on-")
-                         (= k :ref)
-                         (= k :style)
-                         (= k :class))
-                   v  ; Don't wrap these - they have special handling
-                   :else (wrap-reactive v)))))
-      {}
-      attrs)
+     (fn [m k v]
+       (let [k-name (if (keyword? k) (name k) (str k))]
+         (assoc m k
+                (cond
+                  (symbol? k) `(fn [] ~v)
+                  (or (str/starts-with? k-name "on-")
+                      (= k :ref)
+                      (= k :style)
+                      (= k :class))
+                  v  ; Don't wrap these - they have special handling
+                  :else (wrap-reactive v)))))
+     {}
+     attrs)
     attrs))
 
 (defmulti to-js
-          (fn [x]
-            (cond
-              (map? x) :map
-              (vector? x) :vector
-              (keyword? x) :keyword
-              :else (class x))))
+  (fn [x]
+    (cond
+      (map? x) :map
+      (vector? x) :vector
+      (keyword? x) :keyword
+      :else (class x))))
 
 (defn- to-js-map [m shallow?]
   (cond
@@ -66,11 +66,11 @@
                              (interpose ",")
                              (apply str))]
             (vary-meta
-              (list* 'js* (str "{" kvs-str "}")
-                     (if shallow?
-                       (vals m)
-                       (mapv to-js (vals m))))
-              assoc :tag 'object))))
+             (list* 'js* (str "{" kvs-str "}")
+                    (if shallow?
+                      (vals m)
+                      (mapv to-js (vals m))))
+             assoc :tag 'object))))
 
 (defmethod to-js :keyword [x] (name x))
 

@@ -59,9 +59,9 @@
   that a document render calls into the document. Call it once in the server entry."
   []
   (sf/configureServerFunctionsServer
-    #js {:transformResult frames/frameTransformResult
-         :transformFlightResult frames/frameTransformFlightResult
-         :transformDirectResult frames/frameTransformDirectResult}))
+   #js {:transformResult frames/frameTransformResult
+        :transformFlightResult frames/frameTransformFlightResult
+        :transformDirectResult frames/frameTransformDirectResult}))
 
 (def plugin
   "The serialization plugin that a document render needs for the server components it renders,

@@ -64,46 +64,46 @@
 (deftest memo-test
   (testing "memo creation"
     (s/root
-      (fn [dispose]
-        (let [sig (s/signal 5)
-              m (s/memo #(* 2 @sig))]
-          (is (= 10 (m)) "Memo should compute derived value")
-          (reset! sig 6)
-          (s/flush)
-          (is (= 12 (m)) "Memo should follow its source"))
-        (dispose)))))
+     (fn [dispose]
+       (let [sig (s/signal 5)
+             m (s/memo #(* 2 @sig))]
+         (is (= 10 (m)) "Memo should compute derived value")
+         (reset! sig 6)
+         (s/flush)
+         (is (= 12 (m)) "Memo should follow its source"))
+       (dispose)))))
 
 (deftest effect-test
   (testing "effect with compute and apply"
     (s/root
-      (fn [dispose]
-        (let [sig (s/signal 1)
-              seen (atom [])]
-          (s/effect (fn [] @sig) #(swap! seen conj %))
-          (s/flush)
-          (reset! sig 2)
-          (s/flush)
-          (is (= [1 2] @seen) "Effect should apply each value"))
-        (dispose))))
+     (fn [dispose]
+       (let [sig (s/signal 1)
+             seen (atom [])]
+         (s/effect (fn [] @sig) #(swap! seen conj %))
+         (s/flush)
+         (reset! sig 2)
+         (s/flush)
+         (is (= [1 2] @seen) "Effect should apply each value"))
+       (dispose))))
 
   (testing "single-function effect"
     (s/root
-      (fn [dispose]
-        (let [sig (s/signal 1)
-              seen (atom [])]
-          (s/effect #(swap! seen conj @sig))
-          (s/flush)
-          (reset! sig 2)
-          (s/flush)
-          (is (= [1 2] @seen) "Effect should re-run on change"))
-        (dispose)))))
+     (fn [dispose]
+       (let [sig (s/signal 1)
+             seen (atom [])]
+         (s/effect #(swap! seen conj @sig))
+         (s/flush)
+         (reset! sig 2)
+         (s/flush)
+         (is (= [1 2] @seen) "Effect should re-run on change"))
+       (dispose)))))
 
 (deftest batch-test
   (testing "batch function"
     (let [sig (s/signal 0)]
       (s/batch
-        (reset! sig 1)
-        (reset! sig 2))
+       (reset! sig 1)
+       (reset! sig 2))
       (is (= 2 @sig) "Batch should apply final value"))))
 
 (deftest untrack-test
@@ -246,7 +246,7 @@
 (deftest lazy-test
   (testing "lazy component"
     (let [lazy-comp (s/lazy
-                      #js {:default (fn [] ($ :div "lazy loaded"))})]
+                     #js {:default (fn [] ($ :div "lazy loaded"))})]
       (is (some? lazy-comp) "lazy should create lazy component"))))
 
 ;; ============================================

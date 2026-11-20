@@ -206,15 +206,16 @@ Sub-steps:
 4. READMEs of the examples and the main README's examples section.
 5. Pin the commits and check the three examples, development and production.
 
-### 10. Format the code with clojure-lsp — not started
+### 10. Format the code with clojure-lsp — done
 
-Run `clojure-lsp format` over the library, the tests and the examples, in a commit of its own
-with no other changes, so that later diffs show only real changes. Check the macros still
-compile and the tests pass afterwards.
+`clojure-lsp format` in the repository root formats src, dev, resources and test. squint/src and
+the examples' sources are separate projects, formatted with
+`clojure-lsp format --filenames squint/src:examples/shadow-cljs/src:examples/clojurific/src:examples/squint/src`.
+The formatting commit changes whitespace only (`git diff -w` is empty).
 
 ### Status
 
-Steps 1 to 8 are done. Steps 9 and 10 are not started.
+Steps 1 to 8 and 10 are done. Step 9 is not started.
 
 ### Deferred
 

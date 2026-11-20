@@ -1,23 +1,23 @@
 (ns solid.core
-    (:refer-clojure :exclude [if when for cond case try if-let when-let if-some when-some or some-> some->> resolve repeat])
-    (:require [clojure.core :as core]
-              [clojure.string]
-              [clojure.walk :as walk]
-              [solid.compiler :as sc]
-              [solid.lint :as lint]
-              [solid.props :as props]
-              [solid.template :as tpl]))
+  (:refer-clojure :exclude [if when for cond case try if-let when-let if-some when-some or some-> some->> resolve repeat])
+  (:require [clojure.core :as core]
+            [clojure.string]
+            [clojure.walk :as walk]
+            [solid.compiler :as sc]
+            [solid.lint :as lint]
+            [solid.props :as props]
+            [solid.template :as tpl]))
 
 (defn- literal?
-       "Returns true if the expression is a compile-time literal."
-       [x]
-       (core/or
-        (string? x)
-        (number? x)
-        (keyword? x)
-        (nil? x)
-        (true? x)
-        (false? x)))
+  "Returns true if the expression is a compile-time literal."
+  [x]
+  (core/or
+   (string? x)
+   (number? x)
+   (keyword? x)
+   (nil? x)
+   (true? x)
+   (false? x)))
 
 (defn- binding-symbols
   "Returns the symbols that `form` may bind: the patterns of a let-style vector right after a
@@ -60,10 +60,10 @@
                    `(get ~props ~k ~(get defaults sym))
                    `(get ~props ~k)))
         candidates (concat
-                     (core/for [k (:keys m)]
-                       [(symbol (name k)) (keyword (namespace k) (name k)) [:keys k]])
-                     (core/for [[k v] m :when (core/and (symbol? k) (keyword? v))]
-                       [k v [:entry k]]))
+                    (core/for [k (:keys m)]
+                      [(symbol (name k)) (keyword (namespace k) (name k)) [:keys k]])
+                    (core/for [[k v] m :when (core/and (symbol? k) (keyword? v))]
+                      [k v [:entry k]]))
         rewritten (remove (fn [[sym]] (contains? bound sym)) candidates)
         remaining (reduce (fn [m [sym _ [kind k]]]
                             (core/case kind
@@ -154,44 +154,44 @@
     (component-fn &env (core/or sym 'ui) params body true)))
 
 (defn- wrap-children [children]
-       (core/for [x children]
-                 (if (literal? x)
-                     x  ; Don't wrap literals - they can't be reactive
-                     `(fn [] ~x))))
+  (core/for [x children]
+    (if (literal? x)
+      x  ; Don't wrap literals - they can't be reactive
+      `(fn [] ~x))))
 
 (defn- fn-form?
-       "Returns true if the expression is a function literal (fn or fn*)."
-       [x]
-       (and (seq? x)
-            (let [head (first x)]
-                 (core/or (= head 'fn)
-                          (= head 'fn*)))))
+  "Returns true if the expression is a function literal (fn or fn*)."
+  [x]
+  (and (seq? x)
+       (let [head (first x)]
+         (core/or (= head 'fn)
+                  (= head 'fn*)))))
 
 (defn- static-prop?
-       "Returns true if a prop value is passed as is: a literal or a function form."
-       [v]
-       (core/or (sc/literal? v) (fn-form? v)))
+  "Returns true if a prop value is passed as is: a literal or a function form."
+  [v]
+  (core/or (sc/literal? v) (fn-form? v)))
 
 (defn- props-form
-       "Returns the form that creates a component's props object. Keys are converted with
+  "Returns the form that creates a component's props object. Keys are converted with
   `solid.props/prop-name`, and values other than literals and function forms become getters,
   as in Solid's compiled JSX. Without `children`, the object has no children prop."
-       [attrs children]
-       (let [spread (get attrs :&)
-             attrs (dissoc attrs :&)
-             entries (cond-> (vec attrs)
-                       (= 1 (count children))
-                       (conj [:children (first children)])
-                       (< 1 (count children))
-                       (conj [:children `(cljs.core/array
-                                           ~@(core/for [c children]
-                                               (if (static-prop? c) c `(solid.core/-memo-child (fn [] ~c)))))]))
-             getters (remove (fn [[_ v]] (static-prop? v)) entries)
-             statics (filter (fn [[_ v]] (static-prop? v)) entries)]
-            (cond->> `(solid.core/-props-obj
-                        (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) `(fn [] (solid.core/-resolve ~v))]) getters))
-                        (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) v]) statics)))
-              spread (list 'solid.core/-merge-spread `(fn [] ~spread)))))
+  [attrs children]
+  (let [spread (get attrs :&)
+        attrs (dissoc attrs :&)
+        entries (cond-> (vec attrs)
+                  (= 1 (count children))
+                  (conj [:children (first children)])
+                  (< 1 (count children))
+                  (conj [:children `(cljs.core/array
+                                     ~@(core/for [c children]
+                                         (if (static-prop? c) c `(solid.core/-memo-child (fn [] ~c)))))]))
+        getters (remove (fn [[_ v]] (static-prop? v)) entries)
+        statics (filter (fn [[_ v]] (static-prop? v)) entries)]
+    (cond->> `(solid.core/-props-obj
+               (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) `(fn [] (solid.core/-resolve ~v))]) getters))
+               (cljs.core/array ~@(mapcat (fn [[k v]] [(props/prop-name k) v]) statics)))
+      spread (list 'solid.core/-merge-spread `(fn [] ~spread)))))
 
 (defn- h-form
   "Returns the form that creates an element or component through Solid's runtime
@@ -256,16 +256,16 @@
         `(if solid.core/server? ~server ~client)))))
 
 (defmacro if
-          ([test then]
-           `(solid.core/if ~test ~then nil))
-          ([test then else]
-           `(-show (fn [] ~test) (fn [] ~then) (fn [] ~else))))
+  ([test then]
+   `(solid.core/if ~test ~then nil))
+  ([test then else]
+   `(-show (fn [] ~test) (fn [] ~then) (fn [] ~else))))
 
 (defmacro when [test then]
-          `(solid.core/if ~test ~then))
+  `(solid.core/if ~test ~then))
 
 (defmacro if-let
-          "Solid's conditional rendering with binding.
+  "Solid's conditional rendering with binding.
   Binds the test value and renders `then` if truthy, `else` otherwise.
   The bound value is available in the `then` branch.
   
@@ -274,30 +274,30 @@
     ($ :div \"Hello, \" (:name user))
     ($ :div \"Please log in\"))
   ```"
-          ([[binding test] then]
-           `(solid.core/if-let [~binding ~test] ~then nil))
-          ([[binding test] then else]
-           `(let [value# (solid.core/memo (fn [] ~test) {:equals =})]
-                 (-show-keyed value#
-                              (fn [v#]
-                                  (let [~binding v#]
-                                       ~then))
-                              (fn [] ~else)))))
+  ([[binding test] then]
+   `(solid.core/if-let [~binding ~test] ~then nil))
+  ([[binding test] then else]
+   `(let [value# (solid.core/memo (fn [] ~test) {:equals =})]
+      (-show-keyed value#
+                   (fn [v#]
+                     (let [~binding v#]
+                       ~then))
+                   (fn [] ~else)))))
 
 (defmacro when-let
-          "Solid's conditional rendering with binding.
+  "Solid's conditional rendering with binding.
   Binds the test value and renders body if truthy.
   
   ```clojure
   (s/when-let [user @current-user]
     ($ :div \"Hello, \" (:name user)))
   ```"
-          [[binding test] & body]
-          `(solid.core/if-let [~binding ~test]
-                              (do ~@body)))
+  [[binding test] & body]
+  `(solid.core/if-let [~binding ~test]
+     (do ~@body)))
 
 (defmacro if-some
-          "Solid's conditional rendering with binding, checking for non-nil (not falsiness).
+  "Solid's conditional rendering with binding, checking for non-nil (not falsiness).
   Unlike `if-let`, this renders the `then` branch even when value is `false` or `0`.
   
   ```clojure
@@ -305,80 +305,80 @@
     ($ :span count \" items\")  ; shows \"0 items\" when count is 0
     ($ :span \"Loading...\"))
   ```"
-          ([[binding test] then]
-           `(solid.core/if-some [~binding ~test] ~then nil))
-          ([[binding test] then else]
+  ([[binding test] then]
+   `(solid.core/if-some [~binding ~test] ~then nil))
+  ([[binding test] then else]
    ;; Boxes the value so that `false` counts as present, keyed by the memo
-           `(let [value# (solid.core/memo (fn [] ~test) {:equals =})]
-                 (-show-keyed (fn []
-                                  (let [v# (value#)]
-                                       (core/when (some? v#) (cljs.core/array v#))))
-                              (fn [box#]
-                                  (let [~binding (aget box# 0)]
-                                       ~then))
-                              (fn [] ~else)))))
+   `(let [value# (solid.core/memo (fn [] ~test) {:equals =})]
+      (-show-keyed (fn []
+                     (let [v# (value#)]
+                       (core/when (some? v#) (cljs.core/array v#))))
+                   (fn [box#]
+                     (let [~binding (aget box# 0)]
+                       ~then))
+                   (fn [] ~else)))))
 
 (defmacro when-some
-          "Solid's conditional rendering with binding, checking for non-nil.
+  "Solid's conditional rendering with binding, checking for non-nil.
   Unlike `when-let`, this renders even when value is `false` or `0`.
   
   ```clojure
   (s/when-some [count @item-count]
     ($ :span count \" items\"))
   ```"
-          [[binding test] & body]
-          `(solid.core/if-some [~binding ~test]
-                               (do ~@body)))
+  [[binding test] & body]
+  `(solid.core/if-some [~binding ~test]
+     (do ~@body)))
 
 (defmacro or
-          "Solid's fallback rendering. Returns the first truthy value or the last value.
+  "Solid's fallback rendering. Returns the first truthy value or the last value.
   Useful for providing default values in reactive contexts.
   
   ```clojure
   ($ :h1 (s/or @custom-title \"Default Title\"))
   ```"
-          ([] nil)
-          ([x] x)
-          ([x & next]
-           (let [v (gensym "or")]
-                `(let [~v ~x]
-                      (solid.core/if ~v ~v (solid.core/or ~@next))))))
+  ([] nil)
+  ([x] x)
+  ([x & next]
+   (let [v (gensym "or")]
+     `(let [~v ~x]
+        (solid.core/if ~v ~v (solid.core/or ~@next))))))
 
 (defmacro some->
-          "Solid's nil-safe threading macro. Threads value through forms, 
+  "Solid's nil-safe threading macro. Threads value through forms, 
   short-circuiting and rendering nil if any step returns nil.
   
   ```clojure
   (s/some-> @user :profile :avatar-url (as-> url ($ :img {:src url})))
   ```"
-          [expr & forms]
-          (let [g (gensym "some->")
-                steps (map (fn [step]
-                               `(core/if (nil? ~g)
-                                         nil
-                                         (-> ~g ~step)))
-                           forms)]
-               `(let [~g ~expr
-                      ~@(interleave (core/repeat g) steps)]
-                     ~g)))
+  [expr & forms]
+  (let [g (gensym "some->")
+        steps (map (fn [step]
+                     `(core/if (nil? ~g)
+                        nil
+                        (-> ~g ~step)))
+                   forms)]
+    `(let [~g ~expr
+           ~@(interleave (core/repeat g) steps)]
+       ~g)))
 
 (defmacro some->>
-          "Solid's nil-safe threading macro. Threads value through forms as last argument,
+  "Solid's nil-safe threading macro. Threads value through forms as last argument,
   short-circuiting and rendering nil if any step returns nil.
   
   ```clojure
   (s/some->> @items (filter :active) seq ($ :ul (s/for [[item] %] ($ :li item))))
   ```"
-          [expr & forms]
-          (let [g (gensym "some->>")
-                steps (map (fn [step]
-                               `(core/if (nil? ~g)
-                                         nil
-                                         (->> ~g ~step)))
-                           forms)]
-               `(let [~g ~expr
-                      ~@(interleave (core/repeat g) steps)]
-                     ~g)))
+  [expr & forms]
+  (let [g (gensym "some->>")
+        steps (map (fn [step]
+                     `(core/if (nil? ~g)
+                        nil
+                        (->> ~g ~step)))
+                   forms)]
+    `(let [~g ~expr
+           ~@(interleave (core/repeat g) steps)]
+       ~g)))
 
 (defn- loop-options
   "Splits the binding vector of `s/for`, `s/index` and `s/repeat` into the binding, the
@@ -457,44 +457,44 @@
               ~@(wrap-children children))))
 
 (defmacro cond
-          "Solid's `Switch` and `Match` components in Clojure’s `cond` syntax
+  "Solid's `Switch` and `Match` components in Clojure’s `cond` syntax
   ```clojure
   (s/cond
     (= x 1) ($ button {})
     (= y 2) ($ link {})
     :else ($ text {}))
   ```"
-          [& pairs]
-          (let [else (last pairs)
-                marker (last (butlast pairs))]
-               (assert (= :else marker) "The fallback condition has to be marked with :else")
-               `(-switch (fn [] ~else)
-                         ~(->> pairs
-                               (drop-last 2)
-                               (partition 2)
-                               (mapv (fn [[test then]]
-                                         [`(fn [] ~test) `(fn [] ~then)]))))))
+  [& pairs]
+  (let [else (last pairs)
+        marker (last (butlast pairs))]
+    (assert (= :else marker) "The fallback condition has to be marked with :else")
+    `(-switch (fn [] ~else)
+              ~(->> pairs
+                    (drop-last 2)
+                    (partition 2)
+                    (mapv (fn [[test then]]
+                            [`(fn [] ~test) `(fn [] ~then)]))))))
 
 (defmacro case [value & pairs]
-          (let [else (last pairs)
-                expr (gensym "test")]
-               (assert (odd? (count pairs)) "The fallback condition has to be provided")
-               `(let [~expr ~value]
-                     (-switch (fn [] ~else)
-                              ~(->> pairs
-                                    butlast
-                                    (partition 2)
-                                    (mapv (fn [[test then]]
-                                              [`(fn [] (= ~expr ~test)) `(fn [] ~then)])))))))
+  (let [else (last pairs)
+        expr (gensym "test")]
+    (assert (odd? (count pairs)) "The fallback condition has to be provided")
+    `(let [~expr ~value]
+       (-switch (fn [] ~else)
+                ~(->> pairs
+                      butlast
+                      (partition 2)
+                      (mapv (fn [[test then]]
+                              [`(fn [] (= ~expr ~test)) `(fn [] ~then)])))))))
 
 (defmacro dynamic [expr]
-          `(-dynamic (fn [] ~expr)))
+  `(-dynamic (fn [] ~expr)))
 
 (defmacro children [& expr]
-          `(-children (fn [] ~@expr)))
+  `(-children (fn [] ~@expr)))
 
 (defmacro try
-          "Solid's `Errored` component in Clojure’s `try...catch` syntax.
+  "Solid's `Errored` component in Clojure’s `try...catch` syntax.
   The binding is either the error, or a vector of the error and a function
   that resets the boundary to retry rendering its children.
   ```clojure
@@ -508,16 +508,16 @@
     (catch [err reset]
       ($ :button {:on-click #(reset)} \"retry\")))
   ```"
-          [& exprs]
-          (let [[marker binding & body] (last exprs)
-                children (butlast exprs)
-                [e reset] (if (vector? binding) binding [binding])]
-               (assert (= 'catch marker) "should have `catch` marker")
-               `(-error-boundary (fn [err# reset#]
-                                     (let [~e (err#)
-                                           ~(core/or reset (gensym "_")) reset#]
-                                          ~@body))
-                                 ~@(wrap-children children))))
+  [& exprs]
+  (let [[marker binding & body] (last exprs)
+        children (butlast exprs)
+        [e reset] (if (vector? binding) binding [binding])]
+    (assert (= 'catch marker) "should have `catch` marker")
+    `(-error-boundary (fn [err# reset#]
+                        (let [~e (err#)
+                              ~(core/or reset (gensym "_")) reset#]
+                          ~@body))
+                      ~@(wrap-children children))))
 
 (defmacro loading
   "Solid's `Loading` component. Renders `fallback` while async reads in `children` are
@@ -537,22 +537,22 @@
                ~(core/when (contains? opts :on) `(fn [] ~on))
                ~@(wrap-children children))))
 (defmacro batch
-          "Runs `body` and applies the signal writes it queued before returning."
-          [& body]
-          `(solid.core/flush (fn [] ~@body)))
+  "Runs `body` and applies the signal writes it queued before returning."
+  [& body]
+  `(solid.core/flush (fn [] ~@body)))
 
 (defmacro reaction [& body]
-          (lint/lint-effect-body! 'reaction body &env)
-          `(-reaction (fn [] ~@body)))
+  (lint/lint-effect-body! 'reaction body &env)
+  `(-reaction (fn [] ~@body)))
 
 (defmacro lazy
-          "Creates a component that loads with `body`, a promise of a module with a default export
+  "Creates a component that loads with `body`, a promise of a module with a default export
   or of a component. It renders under `s/loading` while it loads.
   ```clojure
   (def editor (s/lazy (shadow.lazy/load (shadow.lazy/loadable app.editor/view))))
   ```"
-          [& body]
-          `(-lazy (fn [] ~@body)))
+  [& body]
+  `(-lazy (fn [] ~@body)))
 
 (defmacro pending?
   "Returns true while a change to the value of `body` is in flight, such as an async memo it
@@ -718,8 +718,8 @@
   ```"
   [params & body]
   `(solid.core/-action
-     (fn ~params
-       (solid.core/-action-iterator (fn [_#] ~(cps-body &env body `cljs.core/identity))))))
+    (fn ~params
+      (solid.core/-action-iterator (fn [_#] ~(cps-body &env body `cljs.core/identity))))))
 
 (defmacro yield
   "Waits for a promise in `s/action`, and returns its settled value."

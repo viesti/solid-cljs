@@ -15,9 +15,9 @@
   (let [[_ bindings & body] (:children node)
         [binding coll & opts] (:children bindings)]
     {:node (api/list-node
-             (list* (api/token-node 'let)
-                    (api/vector-node [binding coll])
-                    (concat (take-nth 2 (rest opts)) body)))}))
+            (list* (api/token-node 'let)
+                   (api/vector-node [binding coll])
+                   (concat (take-nth 2 (rest opts)) body)))}))
 
 (defn try-form
   "Analyzes `(s/try body... (catch e handler...))`, where the binding may also be
@@ -28,12 +28,12 @@
         [_ binding & handler] (:children catch-node)
         names (if (api/vector-node? binding) (:children binding) [binding])]
     {:node (api/list-node
-             (list* (api/token-node 'do)
-                    (concat (butlast exprs)
-                            [(api/list-node
-                               (list* (api/token-node 'let)
-                                      (api/vector-node (mapcat (fn [n] [n (api/token-node nil)]) names))
-                                      handler))])))}))
+            (list* (api/token-node 'do)
+                   (concat (butlast exprs)
+                           [(api/list-node
+                             (list* (api/token-node 'let)
+                                    (api/vector-node (mapcat (fn [n] [n (api/token-node nil)]) names))
+                                    handler))])))}))
 
 (defn- yield? [node]
   (and (api/list-node? node)

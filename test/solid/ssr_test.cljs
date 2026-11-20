@@ -59,13 +59,13 @@
 
 (deftest async-reads
   (async done
-    (do
-      (is (re-matches #"<p>Loading</p><script>.*\[\"\"\].*</script>" (html greeting-view))
-          "render-to-string renders the fallback and a hydration script for the pending read")
-      (-> (s/render-to-string-async greeting-view)
-          (.then (fn [out]
-                   (is (re-find #"Moi, world" out))
-                   (done)))))))
+         (do
+           (is (re-matches #"<p>Loading</p><script>.*\[\"\"\].*</script>" (html greeting-view))
+               "render-to-string renders the fallback and a hydration script for the pending read")
+           (-> (s/render-to-string-async greeting-view)
+               (.then (fn [out]
+                        (is (re-find #"Moi, world" out))
+                        (done)))))))
 
 (defui badge [props]
   (let [props (s/merge-props {:tone "info"} props)]
@@ -98,13 +98,13 @@
 
 (deftest streaming
   (async done
-    (let [chunks (atom [])
-          writable #js {:write (fn [chunk] (swap! chunks conj (str chunk)) true)
-                        :end (fn []
-                               (is (re-find #"<p>wait</p>" (first @chunks)) "the shell has the fallback")
-                               (is (re-find #"late" (apply str @chunks)) "a later chunk has the content")
-                               (done))}]
-      (s/pipe (s/render-to-stream slow-view) writable))))
+         (let [chunks (atom [])
+               writable #js {:write (fn [chunk] (swap! chunks conj (str chunk)) true)
+                             :end (fn []
+                                    (is (re-find #"<p>wait</p>" (first @chunks)) "the shell has the fallback")
+                                    (is (re-find #"late" (apply str @chunks)) "a later chunk has the content")
+                                    (done))}]
+           (s/pipe (s/render-to-stream slow-view) writable))))
 
 (defui h-card [{:keys [title]}]
   (s/$h :section (s/$h :h2 title) (s/$h :p {:class :body} "text")))
@@ -120,8 +120,8 @@
   (let [a (s/memo #(delayed "A-content" 40))
         b (s/memo #(delayed "B-content" 5))]
     (s/reveal {:order :together}
-      (s/loading ($ :p "A-wait") ($ :p (a)))
-      (s/loading ($ :p "B-wait") ($ :p (b))))))
+              (s/loading ($ :p "A-wait") ($ :p (a)))
+              (s/loading ($ :p "B-wait") ($ :p (b))))))
 
 (defn- stream-chunks [root on-end]
   (let [chunks (atom [])]
@@ -131,19 +131,19 @@
 
 (deftest reveal-together-when-streaming
   (async done
-    (stream-chunks
-      revealed
-      (fn [chunks]
-        (let [index-of (fn [re] (first (keep-indexed #(when (re-find re %2) %1) chunks)))
-              b-content (index-of #"B-content")
-              a-content (index-of #"A-content")]
-          (is (re-find #"A-wait" (first chunks)) "the shell has the first fallback")
-          (is (re-find #"B-wait" (first chunks)) "the shell has the second fallback")
-          (is (< b-content a-content) "the faster content streams first")
-          (is (not (re-find #"\$df\(" (nth chunks b-content))) "but is not revealed on its own")
-          (is (re-find #"\$dfj\(\[\"\d+\",\"\d+\"\]\)" (nth chunks a-content))
-              "both boundaries reveal together once the slower one is ready"))
-        (done)))))
+         (stream-chunks
+          revealed
+          (fn [chunks]
+            (let [index-of (fn [re] (first (keep-indexed #(when (re-find re %2) %1) chunks)))
+                  b-content (index-of #"B-content")
+                  a-content (index-of #"A-content")]
+              (is (re-find #"A-wait" (first chunks)) "the shell has the first fallback")
+              (is (re-find #"B-wait" (first chunks)) "the shell has the second fallback")
+              (is (< b-content a-content) "the faster content streams first")
+              (is (not (re-find #"\$df\(" (nth chunks b-content))) "but is not revealed on its own")
+              (is (re-find #"\$dfj\(\[\"\d+\",\"\d+\"\]\)" (nth chunks a-content))
+                  "both boundaries reveal together once the slower one is ready"))
+            (done)))))
 
 (defui home-page [] ($ :p "Home"))
 

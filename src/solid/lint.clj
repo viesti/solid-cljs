@@ -233,39 +233,39 @@
                   (when-not in-tracked?
                     (swap! derefs conj f))
                   f)
-                
+
                 ;; Entering a tracked scope
                 (tracked-scope? f)
                 (do
                   (doall (map #(walk-form % true) (rest f)))
                   f)
-                
+
                 ;; Entering an untracked-but-allowed scope
                 (untracked-allowed? f)
                 f ; Don't recurse - these are fine
-                
+
                 ;; Function form - don't analyze inside (it's a new scope)
                 (fn-form? f)
                 f
-                
+
                 ;; Recurse into sequences
                 (seq? f)
                 (do
                   (doall (map #(walk-form % in-tracked?) f))
                   f)
-                
+
                 ;; Recurse into vectors
                 (vector? f)
                 (do
                   (doall (map #(walk-form % in-tracked?) f))
                   f)
-                
+
                 ;; Recurse into maps
                 (map? f)
                 (do
                   (doall (map #(walk-form % in-tracked?) (vals f)))
                   f)
-                
+
                 :else f))]
       (walk-form form false))
     @derefs))
@@ -275,13 +275,13 @@
   [effect-type body]
   (let [issues (atom [])]
     (walk/prewalk
-      (fn [f]
-        (when (async-form? f)
-          (swap! issues conj {:rule ::async-in-tracked-scope
-                              :form f
-                              :effect-type effect-type}))
-        f)
-      body)
+     (fn [f]
+       (when (async-form? f)
+         (swap! issues conj {:rule ::async-in-tracked-scope
+                             :form f
+                             :effect-type effect-type}))
+       f)
+     body)
     @issues))
 
 ;; -----------------------------------------------------------------------------
@@ -357,7 +357,6 @@
                          :tag (name tag)
                          :form v}))))
       (report-errors! env))))
-
 
 (defn warn-destructured-props!
   "Warns that the destructured props `syms` of a component are read once, since the body binds

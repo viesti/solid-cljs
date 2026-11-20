@@ -78,12 +78,12 @@
 (defn- run-case [n iterations variants]
   (dotimes [_ 3] (doseq [t (vals variants)] (run-once t n)))
   (let [samples (reduce (fn [acc _]
-                            (reduce-kv (fn [acc k t] (update acc k conj (run-once t n))) acc variants))
-                          {:compiled [] :hyperscript []}
-                          (range iterations))]
-      (into {} (for [[k xs] samples]
-                 [k (into {} (for [m [:create :update :clear]]
-                               [m (median (map m xs))]))]))))
+                          (reduce-kv (fn [acc k t] (update acc k conj (run-once t n))) acc variants))
+                        {:compiled [] :hyperscript []}
+                        (range iterations))]
+    (into {} (for [[k xs] samples]
+               [k (into {} (for [m [:create :update :clear]]
+                             [m (median (map m xs))]))]))))
 
 (defn run []
   (let [tables {:compiled table-compiled :hyperscript table-hyperscript}

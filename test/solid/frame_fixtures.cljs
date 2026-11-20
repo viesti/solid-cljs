@@ -38,13 +38,13 @@
   "Returns a promise that resolves once `(pred)` is true, checking every 10 ms for a second."
   [pred]
   (js/Promise.
-    (fn [resolve reject]
-      (let [start (js/Date.now)]
-        ((fn check []
-           (cond
-             (pred) (resolve true)
-             (< 1000 (- (js/Date.now) start)) (reject (js/Error. "timed out"))
-             :else (js/setTimeout check 10))))))))
+   (fn [resolve reject]
+     (let [start (js/Date.now)]
+       ((fn check []
+          (cond
+            (pred) (resolve true)
+            (< 1000 (- (js/Date.now) start)) (reject (js/Error. "timed out"))
+            :else (js/setTimeout check 10))))))))
 
 (defn texts [^js container selector]
   (into-array (map #(.-textContent %) (array-seq (.querySelectorAll container selector)))))

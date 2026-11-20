@@ -12,71 +12,71 @@
 (def headline (sc/-reference "hydration/server/headline" {:live true}))
 
 (test
-  "The browser adopts a server component from the document without a request"
-  (fn []
-    (-> (frames/fixture)
-        (.then (fn [^js f]
-                 (frames/serve-frames! (.-frames f))
-                 (reset! frames/requests [])
-                 (let [container (js/document.createElement "div")]
-                   (set! (.-innerHTML container) (.-html f))
-                   (.appendChild js/document.body container)
-                   (frames/run-scripts! (.-script f) container)
+ "The browser adopts a server component from the document without a request"
+ (fn []
+   (-> (frames/fixture)
+       (.then (fn [^js f]
+                (frames/serve-frames! (.-frames f))
+                (reset! frames/requests [])
+                (let [container (js/document.createElement "div")]
+                  (set! (.-innerHTML container) (.-html f))
+                  (.appendChild js/document.body container)
+                  (frames/run-scripts! (.-script f) container)
                    ;; As a page's entry script does, after the body it adopts; the second test reuses it
-                   (sc/install!)
-                   (let [server-button (frames/button container "a")
-                         hydrated (js/Promise. (fn [resolve] (s/on-hydration-end resolve)))]
-                     (s/hydrate ($ app/page {:todo-list todo-list :filter (s/signal "all")}) container)
-                     (-> hydrated
-                         (.then (fn []
-                                  (.. (expect (identical? server-button (frames/button container "a"))) (toBe true))
-                                  (.click server-button)
-                                  (s/flush)
-                                  (.. (expect (frames/texts container "button.edit")) (toEqual #js ["a:1" "b:0"]))
-                                  (.. (expect (frames/texts container "i")) (toEqual #js ["adding"]))
-                                  (.. (expect (clj->js @frames/requests)) (toEqual #js []))))))))))))
+                  (sc/install!)
+                  (let [server-button (frames/button container "a")
+                        hydrated (js/Promise. (fn [resolve] (s/on-hydration-end resolve)))]
+                    (s/hydrate ($ app/page {:todo-list todo-list :filter (s/signal "all")}) container)
+                    (-> hydrated
+                        (.then (fn []
+                                 (.. (expect (identical? server-button (frames/button container "a"))) (toBe true))
+                                 (.click server-button)
+                                 (s/flush)
+                                 (.. (expect (frames/texts container "button.edit")) (toEqual #js ["a:1" "b:0"]))
+                                 (.. (expect (frames/texts container "i")) (toEqual #js ["adding"]))
+                                 (.. (expect (clj->js @frames/requests)) (toEqual #js []))))))))))))
 
 (test
-  "A streamed server component keeps keyed fills across a refetch"
-  (fn []
-    (-> (frames/fixture)
-        (.then (fn [^js f]
-                 (frames/serve-frames! (.-frames f))
-                 (reset! frames/requests [])
-                 (let [container (js/document.createElement "div")
-                       filter (s/signal "all")]
-                   (.appendChild js/document.body container)
-                   (s/render ($ app/page {:todo-list todo-list :filter filter}) container)
-                   (-> (frames/until #(frames/button container "a"))
-                       (.then (fn []
-                                (.. (expect (frames/texts container "li span")) (toEqual #js ["first" "second"]))
-                                (.click (frames/button container "a"))
-                                (.click (frames/button container "a"))
-                                (s/flush)
-                                (reset! filter "reversed")
-                                (frames/until #(= ["second" "first, renamed"] (vec (frames/texts container "li span"))))))
-                       (.then (fn []
-                                (.. (expect (frames/texts container "button.edit")) (toEqual #js ["b:0" "a:2"]))
-                                (.. (expect (clj->js @frames/requests)) (toEqual #js ["all" "reversed"])))))))))))
+ "A streamed server component keeps keyed fills across a refetch"
+ (fn []
+   (-> (frames/fixture)
+       (.then (fn [^js f]
+                (frames/serve-frames! (.-frames f))
+                (reset! frames/requests [])
+                (let [container (js/document.createElement "div")
+                      filter (s/signal "all")]
+                  (.appendChild js/document.body container)
+                  (s/render ($ app/page {:todo-list todo-list :filter filter}) container)
+                  (-> (frames/until #(frames/button container "a"))
+                      (.then (fn []
+                               (.. (expect (frames/texts container "li span")) (toEqual #js ["first" "second"]))
+                               (.click (frames/button container "a"))
+                               (.click (frames/button container "a"))
+                               (s/flush)
+                               (reset! filter "reversed")
+                               (frames/until #(= ["second" "first, renamed"] (vec (frames/texts container "li span"))))))
+                      (.then (fn []
+                               (.. (expect (frames/texts container "button.edit")) (toEqual #js ["b:0" "a:2"]))
+                               (.. (expect (clj->js @frames/requests)) (toEqual #js ["all" "reversed"])))))))))))
 
 (test
-  "A live server component updates in place and its fills keep their state"
-  (fn []
-    (-> (frames/fixture)
-        (.then (fn [^js f]
-                 (reset! frames/requests [])
-                 (let [send-update (frames/serve-live! (.-live f))
-                       container (js/document.createElement "div")]
-                   (.appendChild js/document.body container)
-                   (s/render ($ app/live-page {:headline headline}) container)
-                   (-> (frames/until #(frames/button container "h"))
-                       (.then (fn []
-                                (.. (expect (frames/texts container "h1")) (toEqual #js ["first"]))
-                                (.click (frames/button container "h"))
-                                (s/flush)
-                                (send-update)
-                                (frames/until #(= ["second"] (vec (frames/texts container "h1"))))))
-                       (.then (fn []
-                                (.. (expect (frames/texts container "button.edit")) (toEqual #js ["h:1"]))
-                                (.. (expect (count @frames/requests)) (toBe 1))
-                                (.. (expect (first @frames/requests)) (toContain "/live/")))))))))))
+ "A live server component updates in place and its fills keep their state"
+ (fn []
+   (-> (frames/fixture)
+       (.then (fn [^js f]
+                (reset! frames/requests [])
+                (let [send-update (frames/serve-live! (.-live f))
+                      container (js/document.createElement "div")]
+                  (.appendChild js/document.body container)
+                  (s/render ($ app/live-page {:headline headline}) container)
+                  (-> (frames/until #(frames/button container "h"))
+                      (.then (fn []
+                               (.. (expect (frames/texts container "h1")) (toEqual #js ["first"]))
+                               (.click (frames/button container "h"))
+                               (s/flush)
+                               (send-update)
+                               (frames/until #(= ["second"] (vec (frames/texts container "h1"))))))
+                      (.then (fn []
+                               (.. (expect (frames/texts container "button.edit")) (toEqual #js ["h:1"]))
+                               (.. (expect (count @frames/requests)) (toBe 1))
+                               (.. (expect (first @frames/requests)) (toContain "/live/")))))))))))

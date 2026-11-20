@@ -48,17 +48,17 @@
 
 (deftest server-function-calls
   (async done
-    (let [award (browser-reference "solid.server-functions-test/award-points")
-          count-ref (browser-reference "solid.server-functions-test/read-count")
-          fail (browser-reference "solid.server-functions-test/fail-safely")]
-      (is (= {:user :ann :points 11 :tags #{:new}} (award-points :ann 1)) "server code calls it directly")
-      (-> (step #(award :ann 5)
-                (fn [r] (is (= {:user :ann :points 15 :tags #{:new}} r) "ClojureScript data round-trips")))
-          (.then #(step (fn [] (count-ref))
-                        (fn [r] (is (= 42 r) "a :get function answers over the transport"))))
-          (.then #(step (fn [] ((browser-reference "solid.server-functions-test/request-path")))
-                        (fn [r] (is (re-find #"^/_server" r) "the request event is in scope"))))
-          (.then #(-> (fail :quota)
-                      (.then (fn [_] (is false "should have rejected"))
-                             (fn [e] (is (= "refused: :quota" (.-message e)) "safe errors keep their message")))))
-          (.then done done)))))
+         (let [award (browser-reference "solid.server-functions-test/award-points")
+               count-ref (browser-reference "solid.server-functions-test/read-count")
+               fail (browser-reference "solid.server-functions-test/fail-safely")]
+           (is (= {:user :ann :points 11 :tags #{:new}} (award-points :ann 1)) "server code calls it directly")
+           (-> (step #(award :ann 5)
+                     (fn [r] (is (= {:user :ann :points 15 :tags #{:new}} r) "ClojureScript data round-trips")))
+               (.then #(step (fn [] (count-ref))
+                             (fn [r] (is (= 42 r) "a :get function answers over the transport"))))
+               (.then #(step (fn [] ((browser-reference "solid.server-functions-test/request-path")))
+                             (fn [r] (is (re-find #"^/_server" r) "the request event is in scope"))))
+               (.then #(-> (fail :quota)
+                           (.then (fn [_] (is false "should have rejected"))
+                                  (fn [e] (is (= "refused: :quota" (.-message e)) "safe errors keep their message")))))
+               (.then done done)))))
