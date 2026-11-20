@@ -254,9 +254,43 @@ the examples' sources are separate projects, formatted with
 `clojure-lsp format --filenames squint/src:examples/shadow-cljs/src:examples/clojurific/src:examples/squint/src`.
 The formatting commit changes whitespace only (`git diff -w` is empty).
 
+### 11. Remaining Solid API — not started
+
+From a review that compared the exports of `solid-js` and `@solidjs/web` (and its frames and
+server-functions entries) with what solid-cljs references, leaving out Solid's internals, the
+compiler's runtime helpers and wire constants. Work in this order:
+
+1. A response from a page render: wrap `createSSRResponse`, which applies the status, headers
+   and redirects that `s/http-status`, `s/http-header` and `s/redirect` set during the render.
+   Use it in the shadow-cljs and Clojurific example servers, which write a fixed 200 today.
+2. Per-call options for server functions: Solid's `invoke` (abort signal, priority) and
+   `withMeta` (metadata for `prepareRequest`, such as auth headers). The browser side of
+   `defserverfn` wraps the reference for EDN, so neither reaches it yet.
+3. The `prop:` attribute namespace in `$`, which sets a DOM property, as custom elements need.
+   `:prop/value` becomes the attribute `value` today.
+4. Live data from server functions: `{:live true}` and `{:broadcast true}` on `defserverfn`,
+   for functions that return an async iterable of values, each encoded on its own.
+5. Forms that work without JavaScript: a server function's form-post URL (`.url`,
+   `serverFunctionActionUrl`), `createNoJSHandler`, and the flash-cookie helpers.
+6. `serverFunctionUrl`, the URL of a GET server function call, for preloading.
+7. `getServerFunctionInvocation` (whether a call is live or broadcast), which the examples
+   reach through interop to count viewers.
+8. `solid-js/attribution` (history, costs, feedback, why), as a namespace of its own.
+9. The primitives behind the boundary components: `createErrorBoundary`,
+   `createLoadingBoundary`, `createRevealOrder`.
+10. Store utilities: `$TRACK`, `isWrappable`, `isEqual`.
+11. `waitAsset`.
+12. Server observability: `getTraceContext`, `reportRequestFailure`.
+13. Frames: the `FRAME_APPLIED_EVENT` event name.
+14. A `solid.router` namespace for `@solidjs/router` 2.0, beyond the link and form claims.
+15. `configureRefresh` from `solid-js/refresh`.
+
+Optional: a transit encoding for server functions beside EDN and `:js`. It would not close any
+gap above, but it is faster for large payloads and has extensible type handlers.
+
 ### Status
 
-Steps 1 to 10 are done.
+Steps 1 to 10 are done. Step 11 is not started.
 
 ### Deferred
 
