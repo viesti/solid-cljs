@@ -324,7 +324,7 @@ caught it; the library's own test builds are shadow-cljs only.
 Optional: a transit encoding for server functions beside EDN and `:js`. It would not close any
 gap above, but it is faster for large payloads and has extensible type handlers.
 
-### 12. Pluggable server function encoding and timestamps — in progress
+### 12. Pluggable server function encoding and timestamps — done
 
 `defserverfn` and `defservercomponent` encode arguments and results as EDN (`pr-str` and
 `cljs.reader`) by default, or pass them to Solid's serializer with `:encoding :js`. Solid's
@@ -380,44 +380,110 @@ comment.
    seroval's plugin API (`seroval-plugins`, `createPlugin`) and how Solid's server functions
    accept serializer plugins. Record findings here before deciding whether to build it.
 
-### 13. A JVM backend example — not started, needs decisions
+   Findings, from a probe run in Node.js against seroval 1.8.2 and `@solidjs/web` 2.0.3:
+   - Seroval refuses ClojureScript collections and keywords (`SerovalUnsupportedTypeError`).
+     A plugin per type works: `createPlugin` with `test`, `parse` (`sync`, `async` and `stream`,
+     each recursing with `ctx.parse`), `serialize` and `deserialize` (recursing with
+     `ctx.deserialize`), and `skipPlainObjects`. Six small plugins (keyword, symbol, map, set,
+     vector, list) round-trip nested data with `js/Date` values intact.
+   - Solid takes the plugins as `codec: {plugins}` in both `configureServerFunctionsClient`
+     and `configureServerFunctionsServer`, and they must match. Arguments travel as plain JSON
+     unless `enableRichArguments()` from `@solidjs/web/server-functions/rich-args` runs once
+     in the browser.
+   - Solid's server treats any result with `Symbol.iterator` (other than arrays, `Map`, `Set`
+     and typed arrays) as a deferred iterable body before the codec sees it. ClojureScript
+     collections are iterable, so a returned map arrived as an empty object. Wrapping the
+     result in a `deftype` box, which Solid's result walker leaves alone, with a plugin for the
+     box, fixed it. Live values would need the same box.
+   - Size: 50 todo maps with dates are 7.2 kB as EDN (614 bytes gzipped) and 27.9 kB through
+     the plugins (2.6 kB gzipped), about four times larger either way. Seroval spends a node
+     on every keyword. `clj->js` data through seroval is 12.2 kB (1.0 kB gzipped).
+   - Hydration data is serialized as JavaScript that runs inline as the page parses, before
+     the ClojureScript bundle loads, so the plugins' `serialize` output (`$cljs.map(...)`)
+     has no constructors to call. Server functions decode from JSON and do not have this
+     problem.
+
+   Decision (proposed): do not build it now. EDN or a custom encoding covers Clojure data,
+   `:encoding :js` covers files and streams, and the plugin encoding costs four times the
+   bytes, a global `enableRichArguments`, boxing and no hydration support. Revisit if a user
+   needs Clojure data and streams in one call.
+
+   Found on the way, an existing bug: on the server, an async `s/memo` whose promise resolves
+   to ClojureScript data (a vector, keyword or map) makes `s/render-to-string-async` resolve
+   to an empty string, with a `SerovalUnsupportedTypeError` in the log. Strings and JS
+   objects work. Step 14 tracks it.
+
+### 13. A JVM backend example — not started
 
 A fourth example: a solid-cljs frontend whose backend runs on the JVM (Clojure), for teams
-whose servers are Clojure rather than Node.js. It should keep the shared todo list from step 9
-(SQLite or another JVM database, the sign-in cookie, the timestamps from step 12) so that the
-four examples can be compared.
+whose servers are Clojure rather than Node.js. It keeps the shared todo list from step 9
+(a JVM database, the sign-in cookie, the timestamps from step 12) so that the four examples
+can be compared.
 
-Solid's server side (`renderToStream`, the server functions handler, frames for server
-components) is JavaScript, so a JVM server cannot run it directly. The decisions below choose
-how much of the server side the example keeps. Record the choice here before building.
+Decisions (the user's, 2026-11-20):
 
-1. Rendering. One of:
-   - Client rendering only: the JVM serves a static page and the browser renders with
-     `s/render`. Simplest, but loses streaming SSR and hydration.
-   - A Node.js render server beside the JVM: Node renders pages and server components and calls
-     the JVM for data. Keeps every Solid feature, at the cost of two processes.
-   - Rendering on the JVM through GraalJS (or another JavaScript engine). Needs a check that
-     Solid's server build runs there (it imports `node:async_hooks`).
-2. Calls from the browser. One of:
-   - Plain HTTP endpoints on the JVM (Ring, reitit), called with fetch, with transit or EDN
-     bodies. No `defserverfn`.
-   - The JVM speaks Solid's server function protocol, so `defserverfn` references in the
-     browser call JVM handlers. Arguments and results are one encoded string (step 12), but
-     the request and response are wrapped in seroval's format, `GET` calls put the arguments in
-     the query, and live calls stream. Investigate how much of the protocol a JVM handler needs
-     (plain and `GET` calls first, live calls second) before choosing.
-3. Live updates for other viewers. Server components with `{:broadcast true}` need Solid's
-   frames on the server, so a JVM backend without Node.js needs another channel, such as
-   server-sent events or a WebSocket read with `s/from`.
-4. The JVM stack: Ring with http-kit or Jetty, reitit for routes, next.jdbc with SQLite or
-   H2, and how the example starts in development (a REPL, shadow-cljs watch for the browser)
-   and production (an uberjar serving the release bundle).
+- Rendering in the browser only, with `s/render`. The JVM serves a static page and the
+  release bundle. No server rendering or hydration for now.
+- Calls go to a reitit API, since a JVM backend often serves an API to other clients too and
+  reitit is familiar. The example may also show `defserverfn` answered by the JVM through
+  Solid's server function protocol, beside reitit, if the investigation below holds up.
+
+Searching found no one implementing Solid's server function protocol outside JavaScript.
+Solid with Java or Kotlin backends appears as a single-page app calling a REST API.
+
+Protocol findings, from wire captures of EDN-encoded calls (`@solidjs/web` 2.0.3):
+
+- A call is `POST <base>/data/<url-encoded id>` with `Content-Type: text/plain`,
+  `X-Server-Function-Format: 1` (a string) and the EDN argument vector as the raw body. The
+  answer is 200 with `X-Server-Function-Format: 1` and the EDN result as the raw body, so a
+  JVM handler needs no seroval for ordinary calls. Format `8` (JSON) is also accepted.
+- A `GET` call is `GET <base>/data/<id>?args=<JSON array holding the EDN string>`.
+- A failure is a status of 400 or more. Without the format header the browser rejects with
+  "Server function call failed with status N". To pass a message, answer format `0` with the
+  length-framed seroval error node `;0x<length in hex, 8 digits>;{"t":13,"i":0,"s":0,"m":"<message>","p":{"k":[],"v":[]}}`
+  and `X-Server-Function-Error: <message>`.
+- Response headers such as `Set-Cookie` pass through, so `s/respond` maps to Ring headers.
+- A live call is `GET <base>/live/<id>?args=...`, answered with `text/event-stream` and
+  `X-Server-Function-Format: 0`: a constant first event declaring an async iterable (node 4),
+  one event per value, `data: {"t":32,"i":4,"f":{"t":1,"s":"<EDN, JSON-escaped>"}}`, and an
+  end event, `data: {"t":34,"i":4,"f":{"t":2,"s":1}}`. A `:` line is a heartbeat. Each value
+  event may carry an `id:`, a digest that lets a reconnect (`Last-Event-ID`) skip an unchanged
+  first value; the JVM may leave it out. So live updates for other viewers can go through the
+  protocol: the JVM writes server-sent events, and the browser's `defserverfn {:live true}`
+  reads them as a live source for `s/memo`.
+- Not covered: server components, which need Solid's frames renderer, form posts without
+  JavaScript, CSRF checks (the JVM must check `Origin` itself), and broadcast, which is a
+  server-side choice with no wire difference.
+- Risk: Solid's client types say "the call-to-request mapping itself is not contractual", so
+  a JVM implementation may break with Solid releases. Pin Solid's version in the example and
+  keep a test that runs the browser runtime against the JVM handler.
+
+Work, in order:
+
+1. The example with reitit: http-kit or Jetty, reitit routes for the todo API (EDN or transit
+   bodies with muuntaja), next.jdbc with SQLite, the sign-in cookie, a shadow-cljs browser
+   build, and live updates for other viewers through server-sent events read with `s/from`.
+   Development: a REPL for the JVM and shadow-cljs watch. Production: an uberjar serving
+   the release bundle.
+2. A small JVM implementation of the protocol (plain, `GET`, errors, live), in the example,
+   with the same todo operations as `defserverfn`s answered by the JVM. Decide after step 1
+   whether it stays in the example or becomes a library.
+3. README for the example, and a line in the main README's example list.
+
+### 14. Async values holding Clojure data during server rendering — not started
+
+On the server, an async `s/memo` whose promise resolves to ClojureScript data renders an
+empty page (see step 12.5). Reproduce it in test/solid/ssr_test.cljs first, then choose:
+
+- Report a clear error instead of an empty page.
+- Carry the value: seroval plugins whose inline JavaScript builds marker objects, which
+  solid-cljs turns into ClojureScript data when a memo is read in the browser.
+- Document that async server values must be strings or JavaScript data.
 
 ### Status
 
-Steps 1 to 11 are done. Step 12 is in progress: sub-steps 1 to 4 are done (4 without a
-development-mode check), and 5, the seroval investigation, is not started. Step 13 needs
-decisions before it starts.
+Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
+proposal not to build the plugin encoding). Steps 13 and 14 are not started.
 
 ### Deferred
 
