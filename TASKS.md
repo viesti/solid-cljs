@@ -144,15 +144,39 @@ Decisions and findings:
   server component and slot fills directly, and an unresolved element computed its hydration key
   outside any owner.
 - `install!` indexes the document's frames on first use, so it must run after the body exists.
-- `asyncArg` has no test of its own, and live server components (`live`) are not wrapped.
+- `asyncArg` has no test of its own.
+
+### 8. Live server components — done
+
+`{:live true}` and `{:broadcast true}` on `defservercomponent` wrap the reference with Solid's
+`live` and `broadcast` on both sides (`declare-call` in src/solid/server_components.cljs).
+Tests: `live-frame-stream`, `broadcast-frame-stream` and `live-document-render` in
+test/solid/server_components_test.cljs, the live update in
+test/hydration/server_components_test.cljs, and adoption of a live component from the document
+in test/hydration/live_server_components_test.cljs. The browser tests play back a stream that
+hydration.server recorded in two parts, and helpers shared by both files are in
+test/solid/frame_fixtures.cljs.
+
+Decisions and findings:
+
+- Server signals do not change, so a live component changes through async sources. A memo over
+  `s/from` with a subscribe function works; each value updates the live hole that reads it.
+- The server marks a call live by its address (`/live/<id>`), so the handler needs nothing new.
+- A test reading a frame stream must read the response itself, not a clone, or cancelling it
+  leaves the server's subscription open.
+- Solid indexes a page's server-rendered frames once, on first use, so a second document in the
+  same page is not adopted. The live adoption test has a file of its own for a fresh page.
+- A slot placed inside a live hole stops the hole from updating (`SSR_LIVE_HOLE_LATCHED`). The
+  README says to place slots beside changing values. Not tested: reconnects after a dropped
+  connection and the `onstatus` hook.
 
 ### Status
 
-Steps 1 to 7 are done.
+Steps 1 to 8 are done.
 
 ### Deferred
 
-Live server components.
+Nothing.
 
 Not planned: a Clojars release. The fork is used through git dependencies pinned to a commit
 on `viesti/solid-2`.

@@ -58,6 +58,7 @@ app needs.
 - `s/dispatch-as-interaction` for listeners that Solid did not attach.
 - Server components with `solid.server-components/defservercomponent`, slots, `:$key` on
   elements, and `s/ui` for anonymous components. Render functions take `:plugins`.
+- Live server components, with `{:live true}` or `{:broadcast true}` on `defservercomponent`.
 
 ### Removed
 

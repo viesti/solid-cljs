@@ -765,6 +765,23 @@ component, and slots are passed to it as props:
 When the call changes, here when `filter` does, the browser requests the new markup and
 updates the existing DOM in place. Slots with the same `:$key` keep their state.
 
+A server component declared `{:live true}` keeps its response open, and each change on the
+server updates the parts of the markup that read the changed value. Values change on the
+server through async sources, such as a memo over `s/from` with a subscribe function:
+
+```clojure
+(defservercomponent headline {:live true} [room]
+  (s/ui [{:keys [editor]}]
+    (let [title (s/memo #(s/from (fn [next _ _] (chat/subscribe room next))))]
+      ($ :section ($ :h1 (title)) ($ editor {:id room})))))
+```
+
+The browser renders it with `sc/server-component` as before, and reconnects when the connection
+drops. `{:broadcast true}` declares a live component whose markup is the same for every viewer,
+so viewers calling it with the same arguments share one render on the server. A slot placed
+inside a value that changes stops that value from updating, so place slots beside it, as the
+editor is placed beside the title here.
+
 The server calls `(sc/configure-server!)` once, which makes `handle-request` answer server
 components with frame streams. A page rendered on the server renders its server components
 into the document, with their slots, when the render is given `{:plugins [sc/plugin]}`. The

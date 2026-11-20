@@ -7,8 +7,13 @@
             ["solid-js" :as solid]
             [cljs.reader :as reader]))
 
-(defn- with-method [f {:keys [method]}]
-  (if (= :get method) (sf/GET f) f))
+(defn- declare-call
+  "Wraps the reference `f` as `opts` declare it: live, broadcast to every viewer, or as a `GET`."
+  [f {:keys [method live broadcast]}]
+  (cond broadcast (sf/broadcast f)
+        live (sf/live f)
+        (= :get method) (sf/GET f)
+        :else f))
 
 (defn -edn-arguments
   "Returns a function that calls `f` with its arguments as one EDN string. Both sides call
@@ -20,7 +25,7 @@
 (defn -reference
   "Returns the browser side of the server component `id`."
   [id {:keys [encoding] :as opts}]
-  (let [reference (with-method (sf/createServerReference id) opts)]
+  (let [reference (declare-call (sf/createServerReference id) opts)]
     (if (= :js encoding) reference (-edn-arguments reference))))
 
 (defn- name-of [id]
@@ -31,7 +36,7 @@
   during a render."
   [id f {:keys [encoding] :as opts}]
   (let [transport (if (= :js encoding) f (fn [edn-args] (apply f (reader/read-string edn-args))))
-        reference (with-method (sf/createServerReference (sf/registerServerReference id transport (name-of id))) opts)]
+        reference (declare-call (sf/createServerReference (sf/registerServerReference id transport (name-of id))) opts)]
     (if (= :js encoding) reference (-edn-arguments reference))))
 
 (defn -server-component [f]

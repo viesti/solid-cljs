@@ -11,6 +11,12 @@
 (defui pending []
   ($ :i "adding"))
 
+(defui live-page
+  "Renders the live server component `headline`, with an `editor` fill beside its title."
+  [{:keys [headline]}]
+  (let [h (sc/server-component (headline))]
+    ($ :main (s/loading ($ :p "loading") ($ h {:editor editor})))))
+
 (defui page
   "Renders the server component `todo-list`, which the server and the browser define
   differently, for the filter that the signal `filter` holds."
