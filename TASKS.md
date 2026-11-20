@@ -171,7 +171,7 @@ Decisions and findings:
   updating (checked in Node while planning step 9). Not tested: reconnects after a dropped
   connection and the `onstatus` hook.
 
-### 9. Server features in the examples — in progress
+### 9. Server features in the examples — done
 
 Each example gets a shared todo list backed by SQLite, beside the existing in-browser todo list,
 which stays in a section of its own. Open the page in two windows and changes in one appear in
@@ -241,8 +241,11 @@ Sub-steps:
    memo. Changing vite.config.mjs while the dev server runs crashes it (Squint's nREPL port is
    taken on restart). Checked by hand in two windows in development (including a hot reload that
    kept another component's state) and in production; the browser bundle has no server code.
-4. READMEs of the examples and the main README's examples section.
-5. Pin the commits and check the three examples, development and production.
+4. READMEs — done. Each example's README describes its server setup, and the main README
+   lists the three examples after its code example.
+5. Pins — done. The README and the three examples pin `8cab7bf`. All three build with
+   `yarn build` against it, and their production servers render the page and answer the live
+   stream. Development was checked by hand against the local checkout in sub-steps 1 to 3.
 
 ### 10. Format the code with clojure-lsp — done
 
@@ -253,7 +256,7 @@ The formatting commit changes whitespace only (`git diff -w` is empty).
 
 ### Status
 
-Steps 1 to 8 and 10 are done. Step 9 is in progress: sub-steps 1 to 3 are done.
+Steps 1 to 10 are done.
 
 ### Deferred
 
