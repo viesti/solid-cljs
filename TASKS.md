@@ -324,9 +324,43 @@ caught it; the library's own test builds are shadow-cljs only.
 Optional: a transit encoding for server functions beside EDN and `:js`. It would not close any
 gap above, but it is faster for large payloads and has extensible type handlers.
 
+### 12. Pluggable server function encoding and timestamps — not started
+
+`defserverfn` and `defservercomponent` encode arguments and results as EDN (`pr-str` and
+`cljs.reader`) by default, or pass them to Solid's serializer with `:encoding :js`. Solid's
+serializer is seroval, not JSON: it carries `Date`, `Map`, `Set`, `BigInt`, typed arrays,
+errors, promises, streams, files and repeated references, but not ClojureScript's persistent
+data, which is why EDN is the default. The user chose a pluggable encoding over building transit
+into the library.
+
+1. Pluggable encoding: `:encoding {:encode f :decode g}`, where `encode` turns the argument
+   vector or the result into a string (or another value Solid's serializer carries) and `decode`
+   reverses it. EDN and `:js` stay as they are, EDN as the default. It must work everywhere the
+   EDN encoding does today: plain calls, `s/respond` envelopes (encode the value, keep status
+   and headers), live and broadcast values (each value on its own), `invoke`, `url` (GET calls),
+   form posts (which bypass the encoding), and server component arguments. Consider a way to set
+   the default encoding once (a var or `configure-client`/`configure-server` option) instead of
+   on every function.
+2. A transit example in the README, using transit-cljs in the app, not as a library dependency.
+   Show handlers for a custom type and that timestamps arrive as `js/Date`.
+3. Tests: a custom encoding round-trips through the transport, including a `js/Date`; a
+   `js/Date` survives the default EDN encoding (`#inst`, read by `cljs.reader`'s `inst` reader,
+   which no test covers yet).
+4. Timestamps in the examples: `created_at` and `done_at` columns in SQLite (epoch
+   milliseconds), `js/Date` values in the rows, shown as "added 14:02" and "done 14:20" in the
+   shared list. Make one timestamp cross the wire as data, since the list is rendered on the
+   server: for example `add-todo` returns the new todo and the client shows "saved at 14:02:05".
+   In shadow-cljs and Clojurific that exercises EDN's `#inst`; in Squint, seroval's `Date`.
+   Re-pin and check all three examples, development and production.
+5. Investigate: a seroval plugin for ClojureScript data (persistent maps, vectors, sets,
+   keywords, symbols), which would give one encoding that carries both Clojure data and
+   seroval's types (dates, streams, files) without a string inside Solid's serializer. Check
+   seroval's plugin API (`seroval-plugins`, `createPlugin`) and how Solid's server functions
+   accept serializer plugins. Record findings here before deciding whether to build it.
+
 ### Status
 
-Steps 1 to 10 are done. Steps 1 to 11 are done.
+Steps 1 to 11 are done. Step 12 is not started.
 
 ### Deferred
 
