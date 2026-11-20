@@ -46,6 +46,9 @@ and the server, which changes the rest:
 - **vite.config.mjs** adds Clojurific's Vite plugin, with `demo.client` as `:main` (no HTML file
   names it, since the server renders the page) and the server entry in `:js-entries`. The Hono
   dev server passes `.cljs` requests to Vite. `vite build --mode server` builds the server.
+- **src/demo/style.css** holds the styles. In development the page links it through Vite, which
+  updates the stylesheet in place when the file changes. The client build emits it as
+  `assets/style.css`, which the production page links instead.
 - **cljs.edn** sets `:solid/hydratable`, and `:solid/refresh` in the `dev` profile, which the
   plugin uses while the dev server runs, so a hot reload re-renders only the components whose
   code changed and keeps the state of the others.

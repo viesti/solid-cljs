@@ -39,8 +39,13 @@ export default defineConfig(({ mode }) => ({
     outDir: 'dist/client',
     emptyOutDir: true,
     rollupOptions: {
-      input: 'src/demo/client.cljs',
-      output: { entryFileNames: 'assets/app.js', chunkFileNames: 'assets/[name]-[hash].js' },
+      // The stylesheet is an input of its own, which the page links instead of the script loading it
+      input: { app: 'src/demo/client.cljs', style: 'src/demo/style.css' },
+      output: {
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name][extname]',
+      },
     },
   },
 }));
