@@ -1,6 +1,6 @@
 {:paths ["src"]
  :deps {com.github.roman01la/solid-cljs {:git/url "https://github.com/viesti/solid-cljs"
-                                         :git/sha "1014141e651ea8bb40fe8a45469a42cdc8810278"}}
+                                         :git/sha "8d259d6a56aed49fe96b5c9c2dfa7017ef53459d"}}
  :aliases
  {;; Uses the solid-cljs checkout this folder lives in
   :local {:override-deps {com.github.roman01la/solid-cljs {:local/root "../.."}}}}}

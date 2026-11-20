@@ -350,8 +350,9 @@ file created before them, and show "added 14:02 · done 14:20" in the shared lis
 returns the new todo and the page shows "Saved “…” at 14:02:05" from its `js/Date`, which
 crosses as EDN's `#inst` in shadow-cljs and Clojurific and as seroval's `Date` in Squint.
 Checked by hand in production builds of all three against the local checkout (adding, checking
-and unchecking, and the server render after a reload). Development mode and the pinned builds
-are not checked yet. `defserverfn` takes no docstring, so the example's note on `add-todo` is a
+and unchecking, and the server render after a reload). The README and the examples pin `8d259d6`,
+and all three build against it, with production servers that render the page. Development mode
+was not checked for this sub-step. `defserverfn` takes no docstring, so the example's note on `add-todo` is a
 comment.
 
 1. Pluggable encoding: `:encoding {:encode f :decode g}`, where `encode` turns the argument
@@ -414,8 +415,8 @@ how much of the server side the example keeps. Record the choice here before bui
 
 ### Status
 
-Steps 1 to 11 are done. Step 12 is in progress: sub-steps 1 to 3 are done, and 4
-waits for pinning and a development check. Step 13 needs
+Steps 1 to 11 are done. Step 12 is in progress: sub-steps 1 to 4 are done (4 without a
+development-mode check), and 5, the seroval investigation, is not started. Step 13 needs
 decisions before it starts.
 
 ### Deferred
