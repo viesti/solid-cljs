@@ -109,3 +109,58 @@
                (.finally (fn []
                            (client/configureServerFunctionsClient #js {:prepareRequest (fn [init _] init)})
                            (done)))))))
+
+(def ^:private price (atom {:value 1 :listeners #{}}))
+
+(defn- set-price! [v]
+  (swap! price assoc :value v)
+  (doseq [f (:listeners @price)] (f {:price v})))
+
+(defserverfn price-feed {:live true} [sym]
+  (s/from (fn [next _ _]
+            (swap! price update :listeners conj next)
+            (next {:price (:value @price) :symbol sym})
+            #(swap! price update :listeners disj next))))
+
+(defn- wait [ms]
+  (js/Promise. (fn [resolve] (js/setTimeout resolve ms))))
+
+(deftest live-values
+  (async done
+         (let [feed (sf/-edn-live-caller (client/live (client/createServerReference "solid.server-functions-test/price-feed")))
+               ^js values (feed :abc)
+               ^js it (.call (aget values js/Symbol.asyncIterator) values)]
+           (is (true? (aget values (js/Symbol.for "solid.LiveSource"))) "the answer is a live source")
+           (-> (.next it)
+               (.then (fn [^js r]
+                        (is (= {:price 1 :symbol :abc} (.-value r)) "the first value arrives as EDN")
+                        (set-price! 2)
+                        (.next it)))
+               (.then (fn [^js r]
+                        (is (= {:price 2} (.-value r)) "a later value follows the source")
+                        (.return it)
+                        (wait 20)))
+               (.then (fn [] (is (empty? (:listeners @price)) "closing the iterator unsubscribes on the server")))
+               (.catch (fn [e] (is false (str "rejected: " e))))
+               (.finally done)))))
+
+(defserverfn shared-price-feed {:broadcast true} []
+  (s/from (fn [next _ _]
+            (swap! price update :listeners conj next)
+            (next {:price (:value @price)})
+            #(swap! price update :listeners disj next))))
+
+(deftest broadcast-values
+  (async done
+         (let [feed (sf/-edn-live-caller (client/broadcast (client/createServerReference "solid.server-functions-test/shared-price-feed")))
+               open #(let [^js values (feed)] (.call (aget values js/Symbol.asyncIterator) values))
+               its [(open) (open)]]
+           (-> (js/Promise.all (into-array (map #(.next ^js %) its)))
+               (.then (fn [rs]
+                        (is (= [{:price 2} {:price 2}] (map #(.-value ^js %) rs)) "both callers get the value")
+                        (is (= 1 (count (:listeners @price))) "and share one source")
+                        (doseq [^js it its] (.return it))
+                        (wait 20)))
+               (.then (fn [] (is (empty? (:listeners @price)) "the source closes with its last caller")))
+               (.catch (fn [e] (is false (str "rejected: " e))))
+               (.finally done)))))

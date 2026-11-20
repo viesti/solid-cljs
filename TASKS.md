@@ -279,8 +279,11 @@ compiler's runtime helpers and wire constants. Work in this order:
    Solid's compiler does. Spread maps pass it to Solid's `spread` as `prop:pageSize`, and server
    spreads leave it out. Tests: "Keywords in the prop namespace set DOM properties" in
    test/vitest/custom_elements.cljs and `properties-on-the-server` in test/solid/ssr_test.cljs.
-4. Live data from server functions: `{:live true}` and `{:broadcast true}` on `defserverfn`,
-   for functions that return an async iterable of values, each encoded on its own.
+4. Live data from server functions — done. `{:live true}` and `{:broadcast true}` on
+   `defserverfn`. The transport maps each value to EDN, and the browser side maps them back,
+   keeping the live source brand and passing `onstatus` through. Tests: `live-values` and
+   `broadcast-values` in test/solid/server_functions_test.cljs. Not tested: a memo over a live
+   server function in the browser, and reconnects.
 5. Forms that work without JavaScript: a server function's form-post URL (`.url`,
    `serverFunctionActionUrl`), `createNoJSHandler`, and the flash-cookie helpers.
 6. `serverFunctionUrl`, the URL of a GET server function call, for preloading.
@@ -301,7 +304,7 @@ gap above, but it is faster for large payloads and has extensible type handlers.
 
 ### Status
 
-Steps 1 to 10 are done. Step 11 is in progress: items 1 to 3 are done.
+Steps 1 to 10 are done. Step 11 is in progress: items 1 to 4 are done.
 
 ### Deferred
 

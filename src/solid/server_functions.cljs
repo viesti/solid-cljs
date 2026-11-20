@@ -22,11 +22,42 @@
   "The key of a server function's metadata, which `withMeta` and `GET` write."
   (js/Symbol.for "solid.ServerFunctionMetadata"))
 
+(def ^:private live-source-key
+  "The key that brands a live server function's answer, which memos follow as a live source."
+  (js/Symbol.for "solid.LiveSource"))
+
 (defn- declare-reference
-  "Declares the reference `f` as `opts` ask: as a `GET`, and with the metadata `:meta`."
-  [f {:keys [method meta]}]
-  (cond-> (if (= :get method) (sf/GET f) f)
+  "Declares the reference `f` as `opts` ask: live, broadcast to every viewer or as a `GET`,
+  and with the metadata `:meta`."
+  [f {:keys [method live broadcast meta]}]
+  (cond-> (cond broadcast (sf/broadcast f)
+                live (sf/live f)
+                (= :get method) (sf/GET f)
+                :else f)
     meta (sf/withMeta (js-options meta))))
+
+(defn- map-values
+  "Returns an async iterable of the values of the async iterable `source` passed through `f`.
+  It keeps the live source brand of `source` and passes `onstatus`, the hook a live answer
+  reports its connection on, through to it."
+  [^js source f]
+  (let [mapped #js {}]
+    (unchecked-set mapped js/Symbol.asyncIterator
+                   (fn []
+                     (let [^js it (.call (unchecked-get source js/Symbol.asyncIterator) source)]
+                       #js {:next (fn []
+                                    (.then (.next it)
+                                           (fn [^js r] (if (.-done r) r #js {:done false :value (f (.-value r))}))))
+                            :return (fn [v]
+                                      (if (.-return it)
+                                        (.return it v)
+                                        (js/Promise.resolve #js {:done true :value v})))})))
+    (when (unchecked-get source live-source-key)
+      (unchecked-set mapped live-source-key true))
+    (js/Object.defineProperty mapped "onstatus"
+                              #js {:get (fn [] (.-onstatus source))
+                                   :set (fn [h] (set! (.-onstatus source) h))})
+    mapped))
 
 (defn -edn-caller
   "Returns a function that calls the server function reference `reference` with its
@@ -43,11 +74,28 @@
                             reader/read-string)))
     caller))
 
+(defn -edn-live-caller
+  "Returns a function that calls the live server function reference `reference` with its
+  arguments as EDN, and returns an async iterable of its values read back."
+  [reference]
+  (let [encode #(pr-str (vec %))
+        caller (fn [& args]
+                 (map-values (reference (encode args)) reader/read-string))]
+    (unchecked-set caller metadata-key (unchecked-get reference metadata-key))
+    (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
+                   (fn [args options]
+                     (map-values ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode args)] options)
+                                 reader/read-string)))
+    caller))
+
 (defn -reference
   "Returns the browser side of the server function `id`."
-  [id {:keys [encoding] :as opts}]
+  [id {:keys [encoding live broadcast] :as opts}]
   (let [reference (declare-reference (sf/createServerReference id) opts)]
-    (if (= :js encoding) reference (-edn-caller reference))))
+    (cond
+      (= :js encoding) reference
+      (or live broadcast) (-edn-live-caller reference)
+      :else (-edn-caller reference))))
 
 (defn- edn-result
   "Returns `result` as EDN. A response from `s/respond` keeps its status and headers, with its
@@ -82,9 +130,17 @@
 (defn -register
   "Registers `f` as the server function `id` for `handle-request`, and returns `f`, which
   server code calls directly."
-  [id f {:keys [encoding] :as opts}]
-  (let [transport (if (= :js encoding)
+  [id f {:keys [encoding live broadcast] :as opts}]
+  (let [transport (cond
+                    (= :js encoding)
                     f
+
+                    (or live broadcast)
+                    (fn [edn-args]
+                      (-> (js/Promise.resolve (apply f (reader/read-string edn-args)))
+                          (.then #(map-values % pr-str))))
+
+                    :else
                     (fn [edn-args]
                       (-> (js/Promise.resolve (apply f (reader/read-string edn-args)))
                           (.then edn-result))))]

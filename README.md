@@ -763,6 +763,18 @@ pass options to Solid's runtime, such as `:base` for another path.
 (sf/invoke get-user {:signal (.-signal controller)} id)
 ```
 
+With `{:live true}` a server function returns an async iterable, and the browser's call
+returns an async iterable of its values, each sent as EDN, which reconnects when the connection
+drops. A memo reads it as a value that changes. `{:broadcast true}` shares one source between
+every caller with the same arguments:
+
+```clojure
+(defserverfn price-feed {:live true} [sym]
+  (s/from (fn [next _ _] (prices/subscribe sym next))))
+
+(let [price (s/memo #(price-feed :abc))] ...)
+```
+
 With `:solid/render` set to `:dom` for the browser and `:server` for the server, the browser
 build leaves the function bodies out. A build without the option, such as Clojurific's, which
 compiles each namespace once for both, compiles both sides and chooses with Solid's `isServer`

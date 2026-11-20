@@ -16,6 +16,11 @@
   which passes arguments and results to Solid's serializer as they are instead of as EDN, and
   `:meta`, a map that `:prepare-request` of `configure-client` receives as `(.-meta context)`,
   with camelCase keys. `invoke` calls it with per-call options, such as an abort signal.
+
+  With `:live true` the body returns an async iterable, such as `(s/from subscribe)`, and the
+  browser's call returns an async iterable of its values, which reconnects when the connection
+  drops. Each value travels as EDN. `:broadcast true` is live with one source for every caller
+  with the same arguments.
   ```clojure
   (defserverfn get-user {:method :get} [id]
     (db/find-user id))

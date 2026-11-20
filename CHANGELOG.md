@@ -57,6 +57,7 @@ app needs.
 - Server functions with `defserverfn` and `solid.server-functions.server/handle-request`.
   Without `:solid/render`, as in Clojurific, `defserverfn` and `defservercomponent` compile
   both sides and choose with Solid's `isServer` at runtime.
+- Live server functions with `{:live true}` or `{:broadcast true}` on `defserverfn`.
 - `defserverfn` takes `:meta`, and `solid.server-functions/invoke` calls a server function with
   per-call options such as an abort signal. Solid's own `invoke` and `withMeta` work on it too.
 - A `defserverfn` may return `s/respond`, whose status and headers reach the browser while
