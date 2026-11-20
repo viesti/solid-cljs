@@ -55,6 +55,7 @@ app needs.
 - Custom elements are created as Solid's compiler creates them.
 - Hot reloading that keeps component state, with `:solid/refresh`.
 - `solid.squint/store`.
+- `s/dispatch-as-interaction` for listeners that Solid did not attach.
 - Server components with `solid.server-components/defservercomponent`, slots, `:$key` on
   elements, and `s/ui` for anonymous components. Render functions take `:plugins`.
 

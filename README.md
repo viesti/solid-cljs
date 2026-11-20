@@ -866,6 +866,15 @@ returns a function that releases it, and `s/warm-asset` starts loading one early
 On a page that requires Trusted Types, `s/set-trusted-types-policy!` makes Solid parse its
 templates through the policy's `createHTML`, and `s/trusted-html` passes HTML through it.
 
+A listener that Solid did not attach (a `click` listener on `document`, say) can run its body
+with `s/dispatch-as-interaction`, so that development builds count its work in the same
+interaction record as the component handlers for the same event:
+
+```clojure
+(.addEventListener js/document "click"
+                   (fn [e] (s/dispatch-as-interaction e #(handle-click e))))
+```
+
 `solid.performance/enable-performance-tracks` records Solid's reactive work as tracks in the
 browser's performance panel and returns a function that stops recording.
 

@@ -107,13 +107,19 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
 - Custom elements through templates: test properties and attributes.
 - `solid.squint`: store, action and server-rendering helpers.
 
-### 6. Deferred Solid features — partly done
+### 6. Deferred Solid features — done
 
 - Assets (`s/warm-asset`, `s/acquire-asset`), trusted types (`s/set-trusted-types-policy!`,
   `s/trusted-html`), performance tracks (src/solid/performance.cljs, its own namespace so only
   builds that use it bundle it) and the request scope from `@solidjs/web/storage`
   (src/solid/server.cljs, server only): done. Tests in test/vitest/features.cljs ("Assets,
   trusted HTML and performance tracks") and `request-scope` in test/solid/ssr_test.cljs.
+- `s/dispatch-as-interaction`: done. Solid's production and server builds call the function
+  directly, and the development and observe builds open an interaction record for the event.
+  Test: "A listener wrapped in dispatch-as-interaction records an interaction" in
+  test/vitest/features.cljs, which reads the record through `solid-js/attribution`. The first
+  `yarn vitest` after adding that import failed three tests while Vite optimized the new
+  dependency mid-run; every run since passed, including two with a cold Vite cache.
 
 ### 7. Server components — done
 
@@ -142,11 +148,11 @@ Decisions and findings:
 
 ### Status
 
-Steps 1 to 5 and 7 are done. Step 6 is done except for `dispatchAsInteraction`.
+Steps 1 to 7 are done.
 
 ### Deferred
 
-`dispatchAsInteraction`, and live server components.
+Live server components.
 
 Not planned: a Clojars release. The fork is used through git dependencies pinned to a commit
 on `viesti/solid-2`.

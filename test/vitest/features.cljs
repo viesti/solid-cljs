@@ -3,6 +3,7 @@
   (:require
     [solid.core :as s :refer [$ defui]]
     [solid.performance]
+    ["solid-js/attribution" :refer [attribution]]
     ["@solidjs/testing-library" :refer [render]]
     ["vitest" :refer [expect test]]))
 
@@ -359,3 +360,22 @@
       (release)
       (-> (wait 200)
           (.then (fn [] (.. (expect (nil? (link))) (toBe true))))))))
+
+(test
+  "A listener wrapped in dispatch-as-interaction records an interaction"
+  (fn []
+    (let [stop (.enable attribution)
+          clicks (s/signal 0)
+          interactions #(vec (.history attribution "interaction"))
+          listener (fn [e] (s/dispatch-as-interaction e #(swap! clicks inc)))
+          c (mount ($ :button.interaction-probe "Press"))]
+      (.addEventListener js/document "click" listener)
+      (.click (q c ".interaction-probe"))
+      (.removeEventListener js/document "click" listener)
+      (s/flush)
+      (let [recorded (interactions)]
+        (stop)
+        (.. (expect @clicks) (toBe 1))
+        (.. (expect (count recorded)) (toBe 1))
+        (.. (expect (.-name (first recorded))) (toBe "click"))
+        (.. (expect (.-writes (first recorded))) (toBe 1))))))

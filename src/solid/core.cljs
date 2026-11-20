@@ -987,6 +987,14 @@
       [html]
       (sw/trustedHTML html))
 
+(defn dispatch-as-interaction
+      "Calls `f` as a handler of the DOM event `e`, so that in development and observe builds
+  its work joins the interaction record of Solid's own handlers for `e`. Returns what `f`
+  returns. Wrap listeners that Solid did not attach and that respond to the user, such as a
+  `click` listener on `document`."
+      [e f]
+      (sw/dispatchAsInteraction e f))
+
 ;; Server and document utilities
 
 (def no-hydration
