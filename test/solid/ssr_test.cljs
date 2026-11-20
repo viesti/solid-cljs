@@ -219,3 +219,15 @@
       "a prop keyword renders nothing on the server")
   (is (= "<div title=\"t\"></div>" (html ($ :div {:& {:prop/items #js [1] :title "t"}})))
       "nor in a spread"))
+
+(deftest server-observability
+  (let [event (solid.server/create-request-event
+               (js/Request. "http://localhost/" #js {:headers #js {"traceparent" "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}}))
+        reported (atom [])]
+    (is (= "4bf92f3577b34da6a3ce929d0e0e4736"
+           (solid.server/provide-request-event event #(some-> ^js (solid.server/trace-context) .-traceId)))
+        "the trace continues from traceparent")
+    (s/configure-server-errors {:on-error (fn [error _] (swap! reported conj (.-message error)))})
+    (solid.server/report-request-failure (js/Error. "upstream down") event)
+    (s/configure-server-errors {:on-error nil})
+    (is (= ["upstream down"] @reported) "a request failure reaches the error hook")))

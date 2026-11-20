@@ -294,22 +294,31 @@ compiler's runtime helpers and wire constants. Work in this order:
    Tested in `form-posts`.
 7. `sfs/invocation` — done, wrapping `getServerFunctionInvocation`. Tested in
    `server-function-calls`. The examples still call Solid's function through interop.
-8. `solid-js/attribution` (history, costs, feedback, why), as a namespace of its own.
-9. The primitives behind the boundary components: `createErrorBoundary`,
-   `createLoadingBoundary`, `createRevealOrder`.
-10. Store utilities: `$TRACK`, `isWrappable`, `isEqual`.
-11. `waitAsset`.
-12. Server observability: `getTraceContext`, `reportRequestFailure`.
-13. Frames: the `FRAME_APPLIED_EVENT` event name.
+8. `solid.attribution` — done (`enable!`, `disable!`, `history`, `explain`, `dependencies`,
+   `cost-tables`, `feedback-tables`, `format-rerun`). The interaction test in
+   test/vitest/features.cljs reads its records through it.
+9. Boundary primitives — done as `s/create-error-boundary`, `s/create-loading-boundary` and
+   `s/create-reveal-order`. `s/error-boundary` was already Solid's `Errored` component, so the
+   primitives take Solid's own names.
+10. Store utilities — done: `s/track-keys` (`$TRACK`) and `s/wrappable?`. `isWrappable` checks
+    only the shape, so a value given to `mark-raw` still counts as wrappable. Not wrapped:
+    `isEqual`, the core's default reference equality, which `=` and `identical?` cover.
+11. `s/wait-asset` — done.
+12. `solid.server/trace-context` and `solid.server/report-request-failure` — done.
+13. `sc/frame-applied-event` — done (a constant, untested).
+    Tests for 9 to 12: "Boundary primitives, store keys and assets" in
+    test/vitest/features.cljs and `server-observability` in test/solid/ssr_test.cljs.
 14. A `solid.router` namespace for `@solidjs/router` 2.0, beyond the link and form claims.
-15. `configureRefresh` from `solid-js/refresh`.
+15. `configureRefresh` — not wrapped. Its documentation says it is meant for bundler
+    integrations, called once before any hot update, and solid-cljs's `:solid/refresh` plays
+    that part itself.
 
 Optional: a transit encoding for server functions beside EDN and `:js`. It would not close any
 gap above, but it is faster for large payloads and has extensible type handlers.
 
 ### Status
 
-Steps 1 to 10 are done. Step 11 is in progress: items 1 to 7 are done.
+Steps 1 to 10 are done. Step 11 is in progress: items 1 to 13 and 15 are done; 14 (router) is left.
 
 ### Deferred
 

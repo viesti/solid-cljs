@@ -59,6 +59,10 @@ app needs.
   both sides and choose with Solid's `isServer` at runtime.
 - Forms that post to a server function without JavaScript (`action-url`, `flash`), `url` for
   a GET call, and `invocation` on the server.
+- `solid.attribution`, the boundary primitives (`create-error-boundary`,
+  `create-loading-boundary`, `create-reveal-order`), `track-keys`, `wrappable?`, `wait-asset`,
+  `solid.server/trace-context`, `solid.server/report-request-failure` and
+  `sc/frame-applied-event`.
 - Live server functions with `{:live true}` or `{:broadcast true}` on `defserverfn`.
 - `defserverfn` takes `:meta`, and `solid.server-functions/invoke` calls a server function with
   per-call options such as an abort signal. Solid's own `invoke` and `withMeta` work on it too.

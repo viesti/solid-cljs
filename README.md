@@ -593,6 +593,10 @@ index, and `s/create-owner`, `s/disposed?`, `s/hydrating?`, `s/on-hydration-end`
 `s/parse-cookie-header` handle cookies, and `s/configure-server-errors` configures error
 reporting.
 
+`s/create-error-boundary`, `s/create-loading-boundary` and `s/create-reveal-order` are the
+primitives behind `s/try`, `s/loading` and `s/reveal`, for components that make their own
+boundaries.
+
 An event handler may be a vector of a function and data, which calls the function with the
 data and the event without creating a closure per element:
 
@@ -622,6 +626,10 @@ the setter, and the setter also takes a function that mutates the draft:
 (s/supdate! set-todos [:items 0 :title] str "!")
 (set-todos (fn [draft] (.push (.-items draft) #js {:id 2 :title "Ship" :done? false})))
 ```
+
+`s/track-keys` reads which keys a store has, so that a computation re-runs when keys are added
+or removed but not when their values change, and `s/wrappable?` tells whether a store would
+wrap a value in a proxy.
 
 A draft function replaces the store's contents only when it returns `(s/replacement value)`.
 Its other return values are ignored, since a ClojureScript function returns its last value,
@@ -881,6 +889,8 @@ The browser calls `(sc/install!)` once, after the document's body has loaded and
 As with server functions, browser builds set `:solid/render :dom` and server builds `:server`.
 Server component ids are the namespace and the name joined with slashes, such as
 `app/todos/todo-list`, because Solid's frames take an id containing a dot as something else.
+`sc/frame-applied-event` names the DOM event that bubbles from a server component's place in
+the page after server markup lands there.
 
 ### Hydration
 
@@ -964,6 +974,9 @@ returns a function that releases it, and `s/warm-asset` starts loading one early
   (s/on-cleanup release))
 ```
 
+`s/wait-asset`, called in a computation, keeps the surrounding `s/loading` boundary pending
+until a promise resolves, as Solid does while an acquired stylesheet loads.
+
 On a page that requires Trusted Types, `s/set-trusted-types-policy!` makes Solid parse its
 templates through the policy's `createHTML`, and `s/trusted-html` passes HTML through it.
 
@@ -979,9 +992,16 @@ interaction record as the component handlers for the same event:
 `solid.performance/enable-performance-tracks` records Solid's reactive work as tracks in the
 browser's performance panel and returns a function that stops recording.
 
+`solid.attribution` explains why computations ran, in development and observe builds:
+`enable!` starts recording, `history` returns records such as `:rerun` and `:interaction`,
+`explain` returns the re-runs of one computation, `dependencies` what it reads, and
+`cost-tables` and `feedback-tables` summarize run times and interaction latency.
+
 On the server, `solid.server/provide-request-event` runs a function with a request event in
 scope, which `s/request-event` returns, and `solid.server/create-request-event` builds one from
-a fetch `Request`.
+a fetch `Request`. `solid.server/trace-context` returns the W3C trace of the current request,
+and `solid.server/report-request-failure` reports a failure outside any render to the server
+error hook.
 
 ## Hot reloading
 

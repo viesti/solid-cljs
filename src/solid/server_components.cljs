@@ -47,6 +47,11 @@
 (defn -server-component [f]
   (solid/dynamicComponent f))
 
+(def frame-applied-event
+  "The name of the DOM event that bubbles from a server component's place in the page after its
+  server markup lands there, such as after an update."
+  frames/FRAME_APPLIED_EVENT)
+
 (defn async-arg
   "Marks a promise or an async iterable passed to a slot, which the slot's component reads as
   its settled value, suspending until the first one arrives."

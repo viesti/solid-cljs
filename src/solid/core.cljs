@@ -780,6 +780,20 @@
   [store]
   (solid/deep store))
 
+(defn track-keys
+  "Reads which keys the store `store` has, so that a computation that calls it re-runs when
+  keys are added or removed, but not when their values change. Returns `store`."
+  [^js store]
+  (unchecked-get store solid/$TRACK)
+  store)
+
+(defn wrappable?
+  "Returns true if `value` has a shape that stores wrap in a reactive proxy: a plain object, an
+  array, or an instance of a class that was not given to `mark-raw`. A single value given to
+  `mark-raw` is kept raw although it has such a shape."
+  [value]
+  (solid/isWrappable value))
+
 (defn external-store [subscribe get-snapshot]
   (let [s (signal (get-snapshot))
         unsub (subscribe (fn [] (reset! s (get-snapshot))))]
@@ -891,6 +905,27 @@
 
 ;; More of Solid's API
 
+(defn create-error-boundary
+  "Returns an accessor of `(f)`, or of `(fallback error reset)` once something `f` runs throws,
+  where `error` is an accessor of the error and `reset` tries `f` again. The primitive behind
+  `s/try`, for components that make their own boundaries."
+  [f fallback]
+  (solid/createErrorBoundary f fallback))
+
+(defn create-loading-boundary
+  "Returns an accessor of `(f)`, or of `(fallback)` while async reads under `f` are pending. The
+  primitive behind `s/loading`. `opts` takes `:on`, a function whose reads restart the pending
+  state when they change."
+  ([f fallback] (solid/createLoadingBoundary f fallback))
+  ([f fallback opts] (solid/createLoadingBoundary f fallback (reactive-options opts))))
+
+(defn create-reveal-order
+  "Runs `f`, coordinating when the loading boundaries under it reveal. The primitive behind
+  `s/reveal`. `opts` takes `:order` and `:collapsed`, functions returning the order (such as
+  \"together\" or \"sequential\") and whether to collapse pending fallbacks."
+  ([f] (solid/createRevealOrder f))
+  ([f opts] (solid/createRevealOrder f (reactive-options opts))))
+
 (defn mark-raw
   "Marks `value` so that stores hold it as it is, without making it reactive."
   [value]
@@ -977,6 +1012,12 @@
   releases it. The asset is removed once every user has released it."
   [descriptor]
   (sw/acquireAsset (asset-descriptor descriptor)))
+
+(defn wait-asset
+  "Keeps the surrounding `s/loading` boundary pending, when called in a computation, until
+  `promise` resolves, as Solid does while a stylesheet that a component acquired loads."
+  [promise]
+  (sw/waitAsset promise))
 
 (defn set-trusted-types-policy!
   "Makes Solid parse templates and HTML through the Trusted Types policy `policy`, an object

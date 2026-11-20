@@ -13,6 +13,19 @@
   [request]
   (sw/createRequestEvent request))
 
+(defn trace-context
+  "Returns the trace that the current request belongs to, continued from its W3C
+  `traceparent` header when it had one, or nil outside a request. Forward
+  `(.. (trace-context) -entries -traceparent)` to downstream services."
+  []
+  (sw/getTraceContext))
+
+(defn report-request-failure
+  "Reports `error`, which failed the request of `event` outside any render or server
+  function, to the server error hook of `s/configure-server-errors`, or to `console.error`."
+  [error event]
+  (sw/reportRequestFailure error event))
+
 (defn provide-request-event
   "Runs `f` with `event` as the request event, which `s/request-event` returns in the code
   that `f` runs, also across async steps. A server wraps each request's rendering in it."

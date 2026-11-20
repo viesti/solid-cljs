@@ -3,7 +3,7 @@
   (:require
    [solid.core :as s :refer [$ defui]]
    [solid.performance]
-   ["solid-js/attribution" :refer [attribution]]
+   [solid.attribution :as attribution]
    ["@solidjs/testing-library" :refer [render]]
    ["vitest" :refer [expect test]]))
 
@@ -364,9 +364,9 @@
 (test
  "A listener wrapped in dispatch-as-interaction records an interaction"
  (fn []
-   (let [stop (.enable attribution)
+   (let [stop (attribution/enable!)
          clicks (s/signal 0)
-         interactions #(vec (.history attribution "interaction"))
+         interactions #(vec (attribution/history :interaction))
          listener (fn [e] (s/dispatch-as-interaction e #(swap! clicks inc)))
          c (mount ($ :button.interaction-probe "Press"))]
      (.addEventListener js/document "click" listener)
@@ -379,3 +379,40 @@
        (.. (expect (count recorded)) (toBe 1))
        (.. (expect (.-name ^js (first recorded))) (toBe "click"))
        (.. (expect (.-writes ^js (first recorded))) (toBe 1))))))
+
+(test
+ "Boundary primitives, store keys and assets"
+ (fn []
+   (let [caught (s/root (fn [_]
+                          (s/create-error-boundary #(throw (js/Error. "broken"))
+                                            (fn [error _] (str "caught " (.-message (error)))))))
+         resolve-greeting (atom nil)
+         greeting (js/Promise. (fn [resolve] (reset! resolve-greeting resolve)))
+         loading (s/root (fn [_]
+                           (let [text (s/memo (fn [] greeting))]
+                             (s/create-loading-boundary #(str "got " (text)) (fn [] "waiting")))))
+         asset (js/Promise. (fn [resolve] (js/setTimeout #(resolve true) 30)))
+         gated (s/root (fn [_]
+                         (s/create-loading-boundary #(do (s/wait-asset asset) "styled") (fn [] "unstyled"))))
+         [st set-st] (s/store {:a 1})
+         runs (atom 0)]
+     (s/root (fn [_] (s/effect (fn [] (s/track-keys st)) (fn [_] (swap! runs inc)))))
+     (s/flush)
+     (.. (expect (caught)) (toBe "caught broken"))
+     (.. (expect (loading)) (toBe "waiting"))
+     (.. (expect (gated)) (toBe "unstyled"))
+     (.. (expect (s/wrappable? #js {})) (toBe true))
+     (.. (expect (s/wrappable? (js/Date.))) (toBe false))
+     (let [before @runs]
+       (set-st (fn [^js d] (set! (.-a d) 2)))
+       (s/flush)
+       (.. (expect @runs) (toBe before))
+       (set-st (fn [^js d] (set! (.-b d) 3)))
+       (s/flush)
+       (.. (expect @runs) (toBe (inc before))))
+     (@resolve-greeting "hi")
+     (-> (wait 60)
+         (.then (fn []
+                  (s/flush)
+                  (.. (expect (loading)) (toBe "got hi"))
+                  (.. (expect (gated)) (toBe "styled"))))))))
