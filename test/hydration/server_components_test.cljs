@@ -66,19 +66,25 @@
        (.then (fn [^js f]
                 (reset! frames/requests [])
                 (let [send-update (frames/serve-live! (.-live f))
-                      container (js/document.createElement "div")]
+                      container (js/document.createElement "div")
+                      warn (.-warn js/console)
+                      warnings (atom [])]
+                  (set! (.-warn js/console) (fn [& args] (swap! warnings conj (str (first args)))))
                   (.appendChild js/document.body container)
                   (s/render ($ app/live-page {:headline headline}) container)
                   (-> (frames/until #(frames/button container "h"))
                       (.then (fn []
                                (.. (expect (frames/texts container "h1")) (toEqual #js ["first"]))
-                                 (.. (expect (frames/texts container "section li")) (toEqual #js ["first" "first!"]))
+                               (.. (expect (frames/texts container "section li")) (toEqual #js ["first" "first!"]))
                                (.click (frames/button container "h"))
                                (s/flush)
                                (send-update)
                                (frames/until #(and (= ["second"] (vec (frames/texts container "h1")))
-                                                     (= ["second" "second!"] (vec (frames/texts container "section li")))))))
+                                                   (= ["second" "second!"] (vec (frames/texts container "section li")))))))
                       (.then (fn []
                                (.. (expect (frames/texts container "button.edit")) (toEqual #js ["h:1"]))
                                (.. (expect (count @frames/requests)) (toBe 1))
-                               (.. (expect (first @frames/requests)) (toContain "/live/")))))))))))
+                               (.. (expect (first @frames/requests)) (toContain "/live/"))
+                               (set! (.-warn js/console) warn)
+                               (.. (expect (clj->js (filter #(.includes % "STRICT_READ_UNTRACKED") @warnings)))
+                                   (toEqual #js [])))))))))))

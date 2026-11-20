@@ -553,7 +553,8 @@
   by the names `solid.props/prop-name` gives them. Children are resolved once, here."
   [^js props]
   (->ReactiveProps props
-                   (when (js-in "children" props)
+                   ;; Untracked, since the props of a server component's slot fill are reactive
+                   (when (solid/untrack #(js-in "children" props))
                      (-children #(.-children props)))))
 
 ;; Spreading props onto components and attributes onto elements, with `:&`
