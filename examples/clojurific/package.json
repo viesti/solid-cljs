@@ -5,15 +5,20 @@
   "scripts": {
     "dev": "vite",
     "dev:local": "LOCAL=1 vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build && vite build --mode server",
+    "build:local": "LOCAL=1 vite build && LOCAL=1 vite build --mode server",
+    "start": "node dist/server/index.js"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.4",
     "@solidjs/h": "^2.0.2",
     "@solidjs/web": "^2.0.3",
+    "hono": "^4.13.13",
     "solid-js": "^2.0.3"
   },
   "devDependencies": {
+    "@hono/vite-build": "^1.11.1",
+    "@hono/vite-dev-server": "^0.26.1",
     "clojurific": "0.12.15",
     "vite": "^8.3.8"
   }

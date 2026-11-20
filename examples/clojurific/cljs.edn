@@ -1,2 +1,5 @@
-;; Compiler options; the dev profile applies while the Vite dev server runs
-{:profiles {:dev {:solid/refresh true}}}
+;; Compiler options; the dev profile applies while the Vite dev server runs. Without
+;; :solid/render, both the browser and the server code are compiled, and Solid's isServer
+;; chooses at runtime.
+{:solid/hydratable true
+ :profiles {:dev {:solid/refresh true}}}

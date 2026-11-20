@@ -215,8 +215,20 @@ Sub-steps:
    "A broadcast server component read the request" comes from Solid's own `renderToStream` in
    its development build. Once the viewer count stayed one too high after a window closed,
    which did not happen again: watch for it.
-2. Clojurific example: check whether its Vite plugin can compile namespaces for Vite's server
-   rendering with server compiler options. If not, precompile the server or show fewer features.
+2. Clojurific example — done, with every feature. Clojurific compiles each namespace once for
+   the browser and its server environment, so per-build compiler options are impossible. The
+   user chose to make `defserverfn` and `defservercomponent` compile both sides without
+   `:solid/render` and choose with `isServer` at runtime (library change with a test in
+   test/solid/core_test.cljs). The production browser bundle contains none of the server
+   bodies (checked by grepping it for their strings); development bundles do. Shared code
+   reaches the database through demo/store.cljs, which the server entry fills. The server is a
+   Hono app (`:js-entries`), served by `@hono/vite-dev-server` with `.cljs` added to its
+   excludes, and bundled by `@hono/vite-build` in `vite build --mode server`. `demo.client` is
+   in `:main`, since no HTML file names it. Checked by hand in two windows in development
+   (including hot reloads of browser and server code) and in production. The server build
+   warns `IMPORT_IS_UNDEFINED` for browser-only imports of Solid's server modules, which is
+   expected and harmless. The library commit `de8a462` accidentally deleted the old
+   core.cljs and index.html, which this example replaces.
 3. Squint example: solid-cljs macros are not available, so use Solid's own `ssr` and
    `serverFunctions` options in `@solidjs/vite-plugin`. Check whether Squint can emit the
    `"use server"` directive that Solid's compiler looks for.
@@ -232,7 +244,7 @@ The formatting commit changes whitespace only (`git diff -w` is empty).
 
 ### Status
 
-Steps 1 to 8 and 10 are done. Step 9 is in progress: sub-step 1 is done.
+Steps 1 to 8 and 10 are done. Step 9 is in progress: sub-steps 1 and 2 are done.
 
 ### Deferred
 

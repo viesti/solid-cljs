@@ -3,3 +3,4 @@ dist
 target
 .cljf
 .cpcache
+todos.db
