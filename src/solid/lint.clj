@@ -127,13 +127,15 @@
              (= head 'clojure.core/deref)
              (= head 'cljs.core/deref)))))
 
+(def ^:private fn-heads
+  "Symbols of forms whose body runs when the function they create is called. An `s/action`
+  creates one."
+  #{'fn 'fn* 'solid.core/action 's/action})
+
 (defn fn-form?
-  "Returns true if form is a function literal."
+  "Returns true if form creates a function, such as a function literal or an `s/action`."
   [form]
-  (and (seq? form)
-       (let [head (first form)]
-         (or (= head 'fn)
-             (= head 'fn*)))))
+  (and (seq? form) (contains? fn-heads (first form))))
 
 (defn async-form?
   "Returns true if form appears to be async (go block, Promise, async fn)."
