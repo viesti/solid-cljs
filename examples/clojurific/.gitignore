@@ -4,3 +4,4 @@ target
 .cljf
 .cpcache
 todos.db
+.clj-kondo
