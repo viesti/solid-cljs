@@ -689,6 +689,23 @@ are Solid's components for regions that are not hydrated:
 ($ s/no-hydration ($ static-footer))
 ```
 
+`solid.server/render-to-response` renders a page for a fetch `Request` and returns a promise of
+a streamed `Response`. The response takes the status and headers that the render set with
+`s/http-status` and `s/http-header`, and a `Location` header makes it a redirect. `:document` is
+the page around the render, as hiccup with `:solid/content` where the render goes, which
+`solid.server/html` turns into HTML. `solid.server/raw` inserts HTML as it is:
+
+```clojure
+(solid.server/render-to-response
+  request ($ app)
+  {:plugins [sc/plugin]
+   :document [:html {:lang "en"}
+              [:head [:meta {:charset "UTF-8"}] [:title "App"]
+               (solid.server/raw (s/hydration-script))]
+              [:body [:div#root :solid/content]
+               [:script {:type "module" :src "/js/main.js"}]]]})
+```
+
 ### Server functions
 
 `defserverfn` defines a function that runs on the server and that browser code calls over

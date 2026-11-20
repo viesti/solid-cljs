@@ -167,3 +167,49 @@
     (is (= "http://localhost/page?x=1"
            (solid.server/provide-request-event event #(.-url (.-request (s/request-event))))))
     (is (nil? (s/request-event)) "outside the scope there is no event")))
+
+(deftest hiccup-html
+  (is (= "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>a &amp; b</title></head><body><div id=\"root\" class=\"app wide\" hidden><script>1<2</script></div></body></html>"
+         (solid.server/html [:html {:lang "en"}
+                             [:head [:meta {:charset "UTF-8"}] [:title "a & b"]]
+                             [:body [:div#root.app {:class "wide" :hidden true :title nil}
+                                     (solid.server/raw "<script>1<2</script>")]]])))
+  (is (= "<ul><li>1</li><li>2</li></ul>" (solid.server/html [:ul (for [i [1 2]] [:li i])]))))
+
+(defui missing-page []
+  (s/http-status 404)
+  (s/http-header "x-page" "missing")
+  ($ :p "Not found"))
+
+(deftest page-responses
+  (async done
+         (-> (solid.server/render-to-response
+              (js/Request. "http://localhost/missing")
+              ($ missing-page)
+              {:document [:html [:head [:title "T"]] [:body [:div#root :solid/content] [:script {:src "/app.js"}]]]})
+             (.then (fn [^js response]
+                      (is (= 404 (.-status response)) "the status the render set")
+                      (is (= "missing" (.get (.-headers response) "x-page")) "and its header")
+                      (is (= "text/html; charset=utf-8" (.get (.-headers response) "content-type")))
+                      (.text response)))
+             (.then (fn [body]
+                      (is (.startsWith body "<!doctype html><html><head><title>T</title></head><body><div id=\"root\"><p>Not found</p>"))
+                      (is (.endsWith body "</div><script src=\"/app.js\"></script></body></html>"))))
+             (.catch (fn [e] (is false (str e))))
+             (.finally done))))
+
+(defui moved-page []
+  (s/http-status 301)
+  (s/http-header "location" "/new")
+  ($ :p "Moved"))
+
+(deftest page-redirects
+  (async done
+         (-> (solid.server/render-to-response (js/Request. "http://localhost/old") ($ moved-page)
+                                              {:document [:html [:body :solid/content]]})
+             (.then (fn [^js response]
+                      (is (= 301 (.-status response)))
+                      (is (= "/new" (.get (.-headers response) "location")))
+                      (is (nil? (.-body response)) "a redirect has no body")))
+             (.catch (fn [e] (is false (str e))))
+             (.finally done))))

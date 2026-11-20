@@ -50,6 +50,9 @@ app needs.
   client and the server.
 - Options for signals, memos and effects (`:owned-write`, `:unobserved`, `:lazy`, `:error`),
   and contexts without a default.
+- `solid.server/render-to-response`, which renders a page to a `Response` with the status and
+  headers the render set, and `solid.server/html`, which turns hiccup into HTML for the page
+  around it.
 - Server functions with `defserverfn` and `solid.server-functions.server/handle-request`.
   Without `:solid/render`, as in Clojurific, `defserverfn` and `defservercomponent` compile
   both sides and choose with Solid's `isServer` at runtime.
