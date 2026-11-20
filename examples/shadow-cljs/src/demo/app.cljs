@@ -114,9 +114,11 @@
   (let [user (s/signal user-name)
         title (s/signal "")
         adding (s/optimistic (fn [] []))
+        saved (s/signal nil)
         add (s/action [t]
                       (swap! adding conj t)
-                      (s/yield (todos/add-todo t)))
+                      (s/yield [todo (todos/add-todo t)])
+                      (reset! saved todo))
         submit (fn [e]
                  (.preventDefault e)
                  (when (seq @title)
@@ -138,7 +140,10 @@
        (s/loading ($ :p {:class :muted} "Loading...")
                   ($ shared-list {:check check :actions actions}))
        ($ :ul (s/for [[t] @adding]
-                ($ :li {:class :muted} t " (saving)"))))))
+                ($ :li {:class :muted} t " (saving)")))
+       (s/when-let [t @saved]
+         ($ :p {:class :muted}
+            "Saved \u201c" (:title t) "\u201d at " (todos/time-text (:created-at t) true))))))
 
 (defui app [{:keys [user-name]}]
   ($ :main

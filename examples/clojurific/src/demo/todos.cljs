@@ -15,6 +15,15 @@
       s/parse-cookie-header
       (get "name" "someone")))
 
+(defn time-text
+  "Formats the time of day of the `js/Date` `date` as 14:02, or with `seconds` as 14:02:05."
+  ([date] (time-text date false))
+  ([^js date seconds]
+   (.toLocaleTimeString date "en-GB" (cond-> {:hour "2-digit" :minute "2-digit"}
+                                       seconds (assoc :second "2-digit")
+                                       true clj->js))))
+
+;; Returns the new todo, whose js/Date timestamps travel to the browser as EDN's #inst
 (defserverfn add-todo [title]
   (store/call :add! (str/trim title) (author)))
 
@@ -47,5 +56,8 @@
                   ($ :li {:$key (str (:id t))}
                      ($ check {:$key (str (:id t)) :id (:id t) :done (:done t)})
                      ($ :span {:class {:done (:done t)}} (:title t))
-                     ($ :small {:class :muted} (:author t))
+                     ($ :small {:class :muted}
+                        (:author t)
+                        (when-let [at (:created-at t)] (str " · added " (time-text at)))
+                        (when-let [at (:done-at t)] (str " · done " (time-text at))))
                      ($ actions {:$key (str (:id t)) :id (:id t) :title (:title t)}))))))))

@@ -121,9 +121,10 @@
         user #(or @signed-in (cookie-user))
         title (s/signal "")
         [adding set-adding] (createOptimistic [])
+        saved (s/signal nil)
         add (action (^:gen fn [t]
                       (set-adding #(conj % t))
-                      (js-yield (todos/add-todo t))))
+                      (reset! saved (js-yield (todos/add-todo t)))))
         submit (fn [e]
                  (.preventDefault e)
                  (when (seq @title)
@@ -146,7 +147,10 @@
            [SharedList {:check Check :actions Actions}]]
           [:ul
            [For {:each (adding)}
-            (fn [t] #jsx [:li {:class "muted"} t " (saving)"])]]]))
+            (fn [t] #jsx [:li {:class "muted"} t " (saving)"])]]
+          [Show {:when @saved}
+           [:p {:class "muted"}
+            "Saved \u201c" (:title @saved) "\u201d at " (todos/time-text (:created-at @saved) true)]]]))
 
 (defn App []
   #jsx [:main

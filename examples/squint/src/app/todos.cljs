@@ -24,6 +24,14 @@
   (or (aget (parseCookieHeader (or (.. (getRequestEvent) -request -headers (get "cookie")) "")) "name")
       "someone"))
 
+(defn time-text
+  "Formats the time of day of the `js/Date` `date` as 14:02, or with `seconds` as 14:02:05."
+  [date seconds]
+  (.toLocaleTimeString date "en-GB" (if seconds
+                                      {:hour "2-digit" :minute "2-digit" :second "2-digit"}
+                                      {:hour "2-digit" :minute "2-digit"})))
+
+;; Returns the new todo, whose js/Date timestamps Solid's serializer carries to the browser
 (defn ^:async add-todo [title]
   "use server"
   (.add! (js-await (db)) (.trim title) (author)))
@@ -72,5 +80,8 @@
                    #jsx [:li {:$key (str (:id t))}
                          [props.check {:$key (str (:id t)) :id (:id t) :done (:done t)}]
                          [:span {:class {:done (:done t)}} (:title t)]
-                         [:small {:class "muted"} (:author t)]
+                         [:small {:class "muted"}
+                          (:author t)
+                          (when-let [at (:created-at t)] (str " · added " (time-text at false)))
+                          (when-let [at (:done-at t)] (str " · done " (time-text at false)))]
                          [props.actions {:$key (str (:id t)) :id (:id t) :title (:title t)}]])]]])))))

@@ -345,6 +345,15 @@ README's transit example was checked against transit-js's sources (its `m` tag r
 test/solid/server_functions_test.cljs, `frame-stream-with-an-encoding` in
 test/solid/server_components_test.cljs.
 
+Sub-step 4: the examples store `created_at` and `done_at`, adding the columns to a database
+file created before them, and show "added 14:02 · done 14:20" in the shared list. `add-todo`
+returns the new todo and the page shows "Saved “…” at 14:02:05" from its `js/Date`, which
+crosses as EDN's `#inst` in shadow-cljs and Clojurific and as seroval's `Date` in Squint.
+Checked by hand in production builds of all three against the local checkout (adding, checking
+and unchecking, and the server render after a reload). Development mode and the pinned builds
+are not checked yet. `defserverfn` takes no docstring, so the example's note on `add-todo` is a
+comment.
+
 1. Pluggable encoding: `:encoding {:encode f :decode g}`, where `encode` turns the argument
    vector or the result into a string (or another value Solid's serializer carries) and `decode`
    reverses it. EDN and `:js` stay as they are, EDN as the default. It must work everywhere the
@@ -370,9 +379,44 @@ test/solid/server_components_test.cljs.
    seroval's plugin API (`seroval-plugins`, `createPlugin`) and how Solid's server functions
    accept serializer plugins. Record findings here before deciding whether to build it.
 
+### 13. A JVM backend example — not started, needs decisions
+
+A fourth example: a solid-cljs frontend whose backend runs on the JVM (Clojure), for teams
+whose servers are Clojure rather than Node.js. It should keep the shared todo list from step 9
+(SQLite or another JVM database, the sign-in cookie, the timestamps from step 12) so that the
+four examples can be compared.
+
+Solid's server side (`renderToStream`, the server functions handler, frames for server
+components) is JavaScript, so a JVM server cannot run it directly. The decisions below choose
+how much of the server side the example keeps. Record the choice here before building.
+
+1. Rendering. One of:
+   - Client rendering only: the JVM serves a static page and the browser renders with
+     `s/render`. Simplest, but loses streaming SSR and hydration.
+   - A Node.js render server beside the JVM: Node renders pages and server components and calls
+     the JVM for data. Keeps every Solid feature, at the cost of two processes.
+   - Rendering on the JVM through GraalJS (or another JavaScript engine). Needs a check that
+     Solid's server build runs there (it imports `node:async_hooks`).
+2. Calls from the browser. One of:
+   - Plain HTTP endpoints on the JVM (Ring, reitit), called with fetch, with transit or EDN
+     bodies. No `defserverfn`.
+   - The JVM speaks Solid's server function protocol, so `defserverfn` references in the
+     browser call JVM handlers. Arguments and results are one encoded string (step 12), but
+     the request and response are wrapped in seroval's format, `GET` calls put the arguments in
+     the query, and live calls stream. Investigate how much of the protocol a JVM handler needs
+     (plain and `GET` calls first, live calls second) before choosing.
+3. Live updates for other viewers. Server components with `{:broadcast true}` need Solid's
+   frames on the server, so a JVM backend without Node.js needs another channel, such as
+   server-sent events or a WebSocket read with `s/from`.
+4. The JVM stack: Ring with http-kit or Jetty, reitit for routes, next.jdbc with SQLite or
+   H2, and how the example starts in development (a REPL, shadow-cljs watch for the browser)
+   and production (an uberjar serving the release bundle).
+
 ### Status
 
-Steps 1 to 11 are done. Step 12 is in progress: sub-steps 1 to 3 are done.
+Steps 1 to 11 are done. Step 12 is in progress: sub-steps 1 to 3 are done, and 4
+waits for pinning and a development check. Step 13 needs
+decisions before it starts.
 
 ### Deferred
 
