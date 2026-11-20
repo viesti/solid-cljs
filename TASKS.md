@@ -170,9 +170,45 @@ Decisions and findings:
   README says to place slots beside changing values. Not tested: reconnects after a dropped
   connection and the `onstatus` hook.
 
+### 9. Server features in the examples — not started
+
+Each example gets a shared todo list backed by SQLite, beside the existing in-browser todo list,
+which stays in a section of its own. Open the page in two windows and changes in one appear in
+the other. Examples may show fewer features where a tool cannot support one; record why here.
+
+Features to show, and what each demonstrates:
+
+- The page arrives rendered and hydrates: `s/render-to-stream`, `s/hydrate`.
+- Adding, toggling, renaming and deleting todos write to SQLite: `defserverfn`.
+- A new todo shows at once until the server confirms it: `s/action` with an optimistic update.
+- The list and the "open · done · viewers" counts update for every viewer: a
+  `defservercomponent` with `{:broadcast true}`, reading a change feed through `s/memo` over
+  `s/from`. The viewer count is the number of open subscriptions.
+- Each row's checkbox and edit field keep their state while other viewers' changes arrive:
+  slots with `:$key`.
+- "Signed in as Ann", with a name prompt on the first visit and a cookie: the request event and
+  the cookie helpers. Each todo records who added it.
+- A production build: `yarn build` and `yarn start` run the server without Vite's dev server.
+
+Storage is Node's built-in `node:sqlite`, with a database file in the example folder (ignored by
+git). Writes publish to an in-process emitter that the live component reads.
+
+Sub-steps:
+
+1. shadow-cljs example: a `:server` build (`:solid/render :server`) run by Node, the browser
+   build with `:solid/render :dom` and `:solid/hydratable`, and a server entry that routes to
+   `handle-request` or the page render, with Vite in middleware mode in development.
+2. Clojurific example: check whether its Vite plugin can compile namespaces for Vite's server
+   rendering with server compiler options. If not, precompile the server or show fewer features.
+3. Squint example: solid-cljs macros are not available, so use Solid's own `ssr` and
+   `serverFunctions` options in `@solidjs/vite-plugin`. Check whether Squint can emit the
+   `"use server"` directive that Solid's compiler looks for.
+4. READMEs of the examples and the main README's examples section.
+5. Pin the commits and check the three examples, development and production.
+
 ### Status
 
-Steps 1 to 8 are done.
+Steps 1 to 8 are done. Step 9 is not started.
 
 ### Deferred
 
