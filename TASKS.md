@@ -317,6 +317,10 @@ compiler's runtime helpers and wire constants. Work in this order:
     integrations, called once before any hot update, and solid-cljs's `:solid/refresh` plays
     that part itself.
 
+Found while pinning: Clojurific munges the reserved word `for`, so `js/Symbol.for` compiled to
+`Symbol.for$`. Library code uses `(js-invoke js/Symbol "for" ...)` instead. The pinned examples
+caught it; the library's own test builds are shadow-cljs only.
+
 Optional: a transit encoding for server functions beside EDN and `:js`. It would not close any
 gap above, but it is faster for large payloads and has extensible type handlers.
 

@@ -31,7 +31,7 @@ dist/server, and `yarn start` runs it. The dev server also starts Squint's nREPL
   ```clojure
   :deps {com.github.roman01la/solid-cljs
          {:git/url "https://github.com/viesti/solid-cljs"
-          :git/sha "71062315e3495487075863707afb8ee95da035af"
+          :git/sha "1014141e651ea8bb40fe8a45469a42cdc8810278"
           :deps/root "squint"}}
   ```
   `:deps/root "squint"` selects the repository's squint directory, which holds only
