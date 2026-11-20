@@ -20,15 +20,15 @@
 
 (def ^:private metadata-key
   "The key of a server function's metadata, which `withMeta` and `GET` write."
-  (js/Symbol.for "solid.ServerFunctionMetadata"))
+  (js-invoke js/Symbol "for" "solid.ServerFunctionMetadata"))
 
 (def ^:private live-source-key
   "The key that brands a live server function's answer, which memos follow as a live source."
-  (js/Symbol.for "solid.LiveSource"))
+  (js-invoke js/Symbol "for" "solid.LiveSource"))
 
 (def ^:private edn-key
   "The key that marks a function whose arguments travel as one EDN string."
-  (js/Symbol.for "solid.cljs.EdnArguments"))
+  (js-invoke js/Symbol "for" "solid.cljs.EdnArguments"))
 
 (defn- share-identity!
   "Gives `f` the id, metadata and EDN mark of the reference `reference`, which Solid's helpers
