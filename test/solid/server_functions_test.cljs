@@ -1,7 +1,9 @@
 (ns solid.server-functions-test
   "Calls server functions through Solid's browser transport, sent straight to the server
   handler in the same Node.js process."
-  (:require [cljs.test :refer [deftest is async]]
+  (:require [cljs.reader :as reader]
+            [cljs.test :refer [deftest is async]]
+            [clojure.walk]
             [solid.core :as s]
             [solid.server-functions :as sf :refer [defserverfn]]
             [solid.server-functions.server :as sfs]
@@ -29,7 +31,7 @@
   "Returns what a browser build defines for the server function `id`, using the browser
   module of Solid's runtime."
   [id]
-  (sf/-edn-caller (client/createServerReference id)))
+  (sf/-caller (client/createServerReference id)))
 
 ;; Node.js has no page location, so URLs resolve against localhost. The client runtime sends
 ;; with the global fetch, which goes to the handler here, with the Origin a browser would send.
@@ -135,7 +137,7 @@
 
 (deftest live-values
   (async done
-         (let [feed (sf/-edn-live-caller (client/live (client/createServerReference "solid.server-functions-test/price-feed")))
+         (let [feed (sf/-live-caller (client/live (client/createServerReference "solid.server-functions-test/price-feed")))
                ^js values (feed :abc)
                ^js it (.call (aget values js/Symbol.asyncIterator) values)]
            (is (true? (aget values (js/Symbol.for "solid.LiveSource"))) "the answer is a live source")
@@ -160,7 +162,7 @@
 
 (deftest broadcast-values
   (async done
-         (let [feed (sf/-edn-live-caller (client/broadcast (client/createServerReference "solid.server-functions-test/shared-price-feed")))
+         (let [feed (sf/-live-caller (client/broadcast (client/createServerReference "solid.server-functions-test/shared-price-feed")))
                open #(let [^js values (feed)] (.call (aget values js/Symbol.asyncIterator) values))
                its [(open) (open)]]
            (-> (js/Promise.all (into-array (map #(.next ^js %) its)))
@@ -183,7 +185,7 @@
                form (doto (js/FormData.) (.append "text" "hi"))]
            (is (re-find #"^/_server/solid\.server-functions-test%2Fadd-note\?args=" action) "the form's url")
            (is (re-find #"^/_server/data/solid\.server-functions-test%2Fread-count\?args="
-                        (sf/url (sf/-edn-caller (client/GET (client/createServerReference "solid.server-functions-test/read-count")))))
+                        (sf/url (sf/-caller (client/GET (client/createServerReference "solid.server-functions-test/read-count")))))
                "a GET call's url, with EDN arguments")
            (-> (sfs/handle-request
                 (js/Request. (str "http://localhost" action)
@@ -201,3 +203,59 @@
                         (is (= "saved hi to inbox" (:result flash)) "flash reads the outcome")))
                (.catch (fn [e] (is false (str "rejected: " e))))
                (.finally done)))))
+
+(defserverfn next-day [date]
+  {:date date :next (js/Date. (+ (.getTime date) 86400000))})
+
+(deftest dates-in-edn
+  (async done
+         (-> (step #((browser-reference "solid.server-functions-test/next-day") (js/Date. 0))
+                   (fn [{:keys [date next]}]
+                     (is (instance? js/Date date) "a js/Date argument arrives as a js/Date")
+                     (is (= 86400000 (.getTime next)) "and a js/Date result as one")))
+             (.then done done))))
+
+(defrecord Money [cents])
+
+(def money-encoding
+  "Writes `Money` as `#test/money`, and anything else as EDN."
+  {:encode (fn [v]
+             (pr-str (clojure.walk/postwalk #(if (instance? Money %) (tagged-literal 'test/money (:cents %)) %) v)))
+   :decode (fn [s] (reader/read-string {:readers {'test/money ->Money}} s))})
+
+(defserverfn add-money {:encoding money-encoding} [a b]
+  (s/respond {:sum (->Money (+ (:cents a) (:cents b))) :at (js/Date. 0)} {:status 201}))
+
+(defserverfn money-feed {:encoding money-encoding :live true} [cents]
+  (s/from (fn [next _ _] (next (->Money cents)) (fn []))))
+
+(defserverfn read-money {:method :get} [cents]
+  (->Money cents))
+
+(deftest custom-encodings
+  (async done
+         (let [add (sf/-caller (client/createServerReference "solid.server-functions-test/add-money") money-encoding)
+               feed (sf/-live-caller (client/live (client/createServerReference "solid.server-functions-test/money-feed"))
+                                     money-encoding)
+               read-ref (fn [] (sf/-caller (client/GET (client/createServerReference "solid.server-functions-test/read-money"))))]
+           (-> (step #(add (->Money 100) (->Money 50))
+                     (fn [{:keys [sum at]}]
+                       (is (= (->Money 150) sum) "a custom type round-trips through its encoding")
+                       (is (= 201 (second (last @requests))) "inside a response that keeps its status")
+                       (is (instance? js/Date at) "and dates arrive as js/Date")))
+               (.then (fn []
+                        (let [^js values (feed 7)
+                              ^js it (.call (aget values js/Symbol.asyncIterator) values)]
+                          (-> (.next it)
+                              (.then (fn [^js r]
+                                       (is (= (->Money 7) (.-value r)) "live values use the encoding")
+                                       (.return it)))))))
+               (.then (fn []
+                        (sf/set-default-encoding! money-encoding)
+                        (is (re-find #"test%2Fmoney" (sf/url (read-ref) (->Money 3))) "url encodes with the default")
+                        (step #((read-ref) 3)
+                              (fn [r] (is (= (->Money 3) r) "the default encoding applies to functions without one")))))
+               (.catch (fn [e] (is false (str "rejected: " e))))
+               (.finally (fn []
+                           (sf/set-default-encoding! sf/edn)
+                           (done)))))))

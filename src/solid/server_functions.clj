@@ -12,14 +12,19 @@
   chooses at runtime, so the browser code contains `body`. The server answers calls with
   `solid.server-functions.server/handle-request`.
 
-  `opts` may set `:method :get`, for calls that read and may be cached, `:encoding :js`,
-  which passes arguments and results to Solid's serializer as they are instead of as EDN, and
+  `opts` may set `:method :get`, for calls that read and may be cached, `:encoding`, and
   `:meta`, a map that `:prepare-request` of `configure-client` receives as `(.-meta context)`,
   with camelCase keys. `invoke` calls it with per-call options, such as an abort signal.
 
+  Arguments and results travel as EDN unless `:encoding` names another encoding: a map of
+  `:encode`, which turns the argument vector or a result into a value for Solid's serializer,
+  such as a string, and `:decode`, which reverses it. `solid.server-functions/set-default-encoding!`
+  sets the one used when `:encoding` is left out. `:encoding :js` passes arguments and results
+  to Solid's serializer as they are.
+
   With `:live true` the body returns an async iterable, such as `(s/from subscribe)`, and the
   browser's call returns an async iterable of its values, which reconnects when the connection
-  drops. Each value travels as EDN. `:broadcast true` is live with one source for every caller
+  drops. Each value is encoded on its own. `:broadcast true` is live with one source for every caller
   with the same arguments.
   ```clojure
   (defserverfn get-user {:method :get} [id]

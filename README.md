@@ -751,9 +751,10 @@ The server answers calls with `solid.server-functions.server/handle-request`, fo
     (render-page request)))
 ```
 
-Arguments and results travel as EDN, so maps, keywords and sets arrive as they were sent.
-`{:encoding :js}` hands them to Solid's serializer as they are instead, for files and streams,
-and `{:method :get}` marks a function that only reads, so that its calls can be cached.
+Arguments and results travel as EDN, so maps, keywords and sets arrive as they were sent, and
+a `js/Date` arrives as a `js/Date` (EDN's `#inst`). `{:encoding :js}` hands them to Solid's
+serializer as they are instead, for files and streams, and `{:method :get}` marks a function
+that only reads, so that its calls can be cached.
 `solid.server-functions/configure-client` and `solid.server-functions.server/configure-server`
 pass options to Solid's runtime, such as `:base` for another path.
 
@@ -772,7 +773,7 @@ pass options to Solid's runtime, such as `:base` for another path.
 ```
 
 With `{:live true}` a server function returns an async iterable, and the browser's call
-returns an async iterable of its values, each sent as EDN, which reconnects when the connection
+returns an async iterable of its values, each encoded on its own, which reconnects when the connection
 drops. A memo reads it as a value that changes. `{:broadcast true}` shares one source between
 every caller with the same arguments:
 
@@ -782,6 +783,40 @@ every caller with the same arguments:
 
 (let [price (s/memo #(price-feed :abc))] ...)
 ```
+
+`:encoding` also takes a map of `:encode` and `:decode` functions for another encoding.
+`encode` turns the argument vector or a result into a string (or another value that Solid's
+serializer carries), and `decode` reverses it. `solid.server-functions/set-default-encoding!`
+sets the encoding of every function that does not name one, so the browser entry and the
+server entry must both call it. Calls use the default set at the time of the call. This
+example uses transit, with transit-cljs as a dependency of the app, and a handler for a record
+type. Transit carries timestamps as `js/Date`:
+
+```clojure
+(ns app.transit
+  (:require [cognitect.transit :as t]
+            [solid.server-functions :as sf]))
+
+(defrecord Money [cents currency])
+
+(def encoding
+  (let [w (t/writer :json {:handlers {Money (t/write-handler (constantly "money")
+                                                             (fn [m] [(:cents m) (:currency m)]))}})
+        r (t/reader :json {:handlers {"money" (fn [[cents currency]] (->Money cents currency))}})]
+    {:encode #(t/write w %)
+     :decode #(t/read r %)}))
+
+;; In both entries, before the first call
+(sf/set-default-encoding! encoding)
+
+;; Or for one function
+(defserverfn price {:encoding encoding} [sku]
+  {:price (->Money 1250 :eur) :checked-at (js/Date.)})
+```
+
+Server components take `:encoding` too, for their arguments. Their encoding must write equal
+arguments the same way each time, since the encoded arguments are part of the address that the
+browser adopts a server-rendered component by.
 
 A form works without JavaScript when it posts to `solid.server-functions/action-url`, which
 may bind JSON-safe arguments. The server function then receives those arguments and the form's

@@ -76,7 +76,7 @@
                                                          :headers (js/Object.fromEntries (.-headers response))})))
                                   (.catch reject)))
                             (js/Response. "" #js {:status 204})))))))
-     (let [iterable ((sc/-edn-arguments (client/live (client/createServerReference "hydration/server/headline"))))]
+     (let [iterable ((sc/-encoded-arguments (client/live (client/createServerReference "hydration/server/headline"))))]
        (-> (.next (.call (aget iterable js/Symbol.asyncIterator) iterable))
            (.catch (fn [_])))))))
 
@@ -97,7 +97,7 @@
                                 (.then #(resolve #js {:body %
                                                       :headers (js/Object.fromEntries (.-headers response))})))
                             response))))))
-     (-> ((sc/-edn-arguments (client/createServerReference "hydration/server/todo-list")) filter)
+     (-> ((sc/-encoded-arguments (client/createServerReference "hydration/server/todo-list")) filter)
          (.catch reject)))))
 
 (defn- server-component-fixture

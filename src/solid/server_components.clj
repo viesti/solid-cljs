@@ -16,8 +16,9 @@
   body out of browser builds, and without the option both sides are compiled and chosen at
   runtime.
 
-  `opts` may set `:method :get` and `:encoding :js`, as for `defserverfn`; the encoding applies
-  to the arguments only. With `:live true` the response stays open, and the browser updates the
+  `opts` may set `:method :get` and `:encoding`, as for `defserverfn`; the encoding applies
+  to the arguments only, and must encode equal arguments the same way, since the encoded
+  arguments are part of the frame's address. With `:live true` the response stays open, and the browser updates the
   markup in place as the async sources that the component reads change on the server.
   `:broadcast true` declares a live component whose markup every viewer shares, rendered once
   per set of arguments.

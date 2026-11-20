@@ -6,7 +6,7 @@
             ["@solidjs/web/frames" :as frames]
             ["@solidjs/web/server-functions" :as sf]
             ["solid-js" :as solid]
-            [cljs.reader :as reader]))
+            [solid.server-functions :as sfn]))
 
 (def ^boolean -server?
   "True in Solid's server build."
@@ -20,18 +20,19 @@
         (= :get method) (sf/GET f)
         :else f))
 
-(defn -edn-arguments
-  "Returns a function that calls `f` with its arguments as one EDN string. Both sides call
-  server components this way, so a call has the same frame address in the document and in the
-  browser."
-  [f]
-  (fn [& args] (f (pr-str (vec args)))))
+(defn -encoded-arguments
+  "Returns a function that calls `f` with its arguments encoded as one value with `encoding`.
+  Both sides call server components this way, so a call has the same frame address in the
+  document and in the browser."
+  ([f] (-encoded-arguments f nil))
+  ([f encoding]
+   (fn [& args] (f ((:encode (sfn/-codec encoding)) (vec args))))))
 
 (defn -reference
   "Returns the browser side of the server component `id`."
   [id {:keys [encoding] :as opts}]
   (let [reference (declare-call (sf/createServerReference id) opts)]
-    (if (= :js encoding) reference (-edn-arguments reference))))
+    (if (= :js encoding) reference (-encoded-arguments reference encoding))))
 
 (defn- name-of [id]
   (subs id (inc (.lastIndexOf id "/"))))
@@ -40,9 +41,11 @@
   "Registers `f` as the server component `id`, and returns the function that server code calls
   during a render."
   [id f {:keys [encoding] :as opts}]
-  (let [transport (if (= :js encoding) f (fn [edn-args] (apply f (reader/read-string edn-args))))
+  (let [transport (if (= :js encoding)
+                    f
+                    (fn [args] (apply f ((:decode (sfn/-codec encoding)) args))))
         reference (declare-call (sf/createServerReference (sf/registerServerReference id transport (name-of id))) opts)]
-    (if (= :js encoding) reference (-edn-arguments reference))))
+    (if (= :js encoding) reference (-encoded-arguments reference encoding))))
 
 (defn -server-component [f]
   (solid/dynamicComponent f))

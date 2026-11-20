@@ -1,6 +1,7 @@
 (ns solid.server-components-test
   "Renders server components into frame streams and into a document, on the server."
-  (:require [cljs.test :refer [deftest is async]]
+  (:require [cljs.reader]
+            [cljs.test :refer [deftest is async]]
             [clojure.string :as str]
             [solid.core :as s :refer [$]]
             [solid.server :as server]
@@ -22,7 +23,7 @@
 (defn- call
   "Returns a promise of the response to a browser's call of the server component `id` with
   `args`, sent through the browser module of Solid's transport straight to the handler."
-  [id args]
+  [id args & [encoding]]
   (js/Promise.
    (fn [resolve reject]
      (let [fetch (.-fetch js/globalThis)]
@@ -33,7 +34,7 @@
                  (-> (sfs/handle-request (js/Request. (str (js/URL. (str address) "http://localhost"))
                                                       (js/Object.assign #js {} init #js {:headers headers})))
                      (.then (fn [^js response] (resolve (.clone response)) response))))))
-       (-> (apply (sc/-edn-arguments (client/createServerReference id)) args)
+       (-> (apply (sc/-encoded-arguments (client/createServerReference id) encoding) args)
            (.catch reject)
            (.finally #(set! (.-fetch js/globalThis) fetch)))))))
 
@@ -49,6 +50,23 @@
                       (is (str/includes? body "\"slot:editor#b\":{\"kind\":\"slot\",\"args\":{\"id\":\"b\"}}")
                           "slot arguments travel as records")
                       (is (str/includes? body "slot:pending#0:start") "a slot without props")))
+             (.catch (fn [e] (is false (str e))))
+             (.finally done))))
+
+(def ^:private marked-edn
+  "EDN behind a marker, which shows that both sides used this encoding."
+  {:encode #(str "marked:" (pr-str %))
+   :decode #(cljs.reader/read-string (subs % (count "marked:")))})
+
+(defservercomponent dated-heading {:encoding marked-edn} [date]
+  (s/ui [] ($ :h2 "Day " (.getUTCDate date))))
+
+(deftest frame-stream-with-an-encoding
+  (async done
+         (-> (call "solid/server-components-test/dated-heading" [(js/Date. 0)] marked-edn)
+             (.then (fn [^js response] (.text response)))
+             (.then (fn [body]
+                      (is (str/includes? body "<h2>Day 1</h2>") "the arguments are decoded with the component's encoding")))
              (.catch (fn [e] (is false (str e))))
              (.finally done))))
 
@@ -112,7 +130,7 @@
                               (resolve response)
                                ;; the client's own read would race the test's, so it gets nothing
                               (js/Response. "" #js {:status 204})))))))
-       (let [iterable ((sc/-edn-arguments ((if broadcast client/broadcast client/live) (client/createServerReference id))))
+       (let [iterable ((sc/-encoded-arguments ((if broadcast client/broadcast client/live) (client/createServerReference id))))
              iterator (.call (aget iterable js/Symbol.asyncIterator) iterable)]
          (-> (.next iterator) (.catch (fn [_]))))))))
 

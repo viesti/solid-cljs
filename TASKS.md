@@ -324,7 +324,7 @@ caught it; the library's own test builds are shadow-cljs only.
 Optional: a transit encoding for server functions beside EDN and `:js`. It would not close any
 gap above, but it is faster for large payloads and has extensible type handlers.
 
-### 12. Pluggable server function encoding and timestamps — not started
+### 12. Pluggable server function encoding and timestamps — in progress
 
 `defserverfn` and `defservercomponent` encode arguments and results as EDN (`pr-str` and
 `cljs.reader`) by default, or pass them to Solid's serializer with `:encoding :js`. Solid's
@@ -332,6 +332,18 @@ serializer is seroval, not JSON: it carries `Date`, `Map`, `Set`, `BigInt`, type
 errors, promises, streams, files and repeated references, but not ClojureScript's persistent
 data, which is why EDN is the default. The user chose a pluggable encoding over building transit
 into the library.
+
+Sub-steps 1 to 3 are done. `:encoding` takes `:js`, `:edn` or a map of `:encode` and `:decode`,
+and `sf/set-default-encoding!` sets the encoding used when it is left out. The encoding is
+resolved at each call, so a default set in an entry applies to functions defined before it ran.
+`sf/edn` is the EDN encoding, and `sf/-codec` resolves an encoding for solid.server-components.
+The internal helpers are renamed `sf/-caller`, `sf/-live-caller` and `sc/-encoded-arguments`,
+each taking an optional encoding. A form post is now recognised by a `FormData` last argument
+instead of by not being one string, so an encoding may produce values other than strings. The
+README's transit example was checked against transit-js's sources (its `m` tag reads as
+`js/Date`) but not compiled. Tests: `dates-in-edn` and `custom-encodings` in
+test/solid/server_functions_test.cljs, `frame-stream-with-an-encoding` in
+test/solid/server_components_test.cljs.
 
 1. Pluggable encoding: `:encoding {:encode f :decode g}`, where `encode` turns the argument
    vector or the result into a string (or another value Solid's serializer carries) and `decode`
@@ -360,7 +372,7 @@ into the library.
 
 ### Status
 
-Steps 1 to 11 are done. Step 12 is not started.
+Steps 1 to 11 are done. Step 12 is in progress: sub-steps 1 to 3 are done.
 
 ### Deferred
 

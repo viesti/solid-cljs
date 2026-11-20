@@ -26,17 +26,47 @@
   "The key that brands a live server function's answer, which memos follow as a live source."
   (js-invoke js/Symbol "for" "solid.LiveSource"))
 
-(def ^:private edn-key
-  "The key that marks a function whose arguments travel as one EDN string."
-  (js-invoke js/Symbol "for" "solid.cljs.EdnArguments"))
+(def ^:private encoded-key
+  "The key that holds the encoding of a function whose arguments travel encoded, as one value."
+  (js-invoke js/Symbol "for" "solid.cljs.EncodedArguments"))
+
+(def edn
+  "The EDN encoding, the default: `pr-str` and `cljs.reader/read-string`, which reads `#inst` as
+  a `js/Date` and `#uuid` as a UUID."
+  {:encode pr-str :decode reader/read-string})
+
+(defonce ^:private default-encoding (atom edn))
+
+(defn set-default-encoding!
+  "Sets the encoding of server functions and server components that do not name one with
+  `:encoding`, as a map of `:encode` and `:decode`. Both the browser and the server must set the
+  same one. Calls made after this use it, including those of functions defined earlier."
+  [encoding]
+  (reset! default-encoding encoding))
+
+(defn -codec
+  "Returns the `:encode` and `:decode` functions that `encoding` names: a map of them, `:edn`,
+  or nil for the default."
+  [encoding]
+  (cond
+    (nil? encoding) @default-encoding
+    (= :edn encoding) edn
+    (map? encoding) encoding
+    :else (throw (js/Error. (str "Unknown server function encoding: " (pr-str encoding))))))
+
+(defn- encode-args [encoding args]
+  ((:encode (-codec encoding)) (vec args)))
+
+(defn- decode [encoding v]
+  ((:decode (-codec encoding)) v))
 
 (defn- share-identity!
-  "Gives `f` the id, metadata and EDN mark of the reference `reference`, which Solid's helpers
-  that take a server function read."
-  [f reference edn?]
+  "Gives `f` the id and metadata of the reference `reference`, which Solid's helpers that take a
+  server function read, and the encoding of its arguments unless it is `:js`."
+  [f reference encoding]
   (set! (.-id f) (.-id reference))
   (unchecked-set f metadata-key (unchecked-get reference metadata-key))
-  (when edn? (unchecked-set f edn-key true))
+  (when (not= :js encoding) (unchecked-set f encoded-key #js [encoding]))
   f)
 
 (defn- declare-reference
@@ -72,34 +102,36 @@
                                    :set (fn [h] (set! (.-onstatus source) h))})
     mapped))
 
-(defn -edn-caller
-  "Returns a function that calls the server function reference `reference` with its
-  arguments as EDN, and resolves to the EDN result read back. It shares the reference's
+(defn -caller
+  "Returns a function that calls the server function reference `reference` with its arguments
+  encoded with `encoding`, and resolves to the result decoded. It shares the reference's
   metadata and invocation channel, so Solid's `invoke` and `withMeta` work on it."
-  [reference]
-  (let [encode #(pr-str (vec %))
-        caller (fn [& args]
-                 (.then (reference (encode args)) reader/read-string))]
-    (share-identity! caller reference true)
-    (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
-                   (fn [args options]
-                     (.then ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode args)] options)
-                            reader/read-string)))
-    caller))
+  ([reference] (-caller reference nil))
+  ([reference encoding]
+   (let [read #(decode encoding %)
+         caller (fn [& args]
+                  (.then (reference (encode-args encoding args)) read))]
+     (share-identity! caller reference encoding)
+     (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
+                    (fn [args options]
+                      (.then ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode-args encoding args)] options)
+                             read)))
+     caller)))
 
-(defn -edn-live-caller
+(defn -live-caller
   "Returns a function that calls the live server function reference `reference` with its
-  arguments as EDN, and returns an async iterable of its values read back."
-  [reference]
-  (let [encode #(pr-str (vec %))
-        caller (fn [& args]
-                 (map-values (reference (encode args)) reader/read-string))]
-    (share-identity! caller reference true)
-    (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
-                   (fn [args options]
-                     (map-values ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode args)] options)
-                                 reader/read-string)))
-    caller))
+  arguments encoded with `encoding`, and returns an async iterable of its values decoded."
+  ([reference] (-live-caller reference nil))
+  ([reference encoding]
+   (let [read #(decode encoding %)
+         caller (fn [& args]
+                  (map-values (reference (encode-args encoding args)) read))]
+     (share-identity! caller reference encoding)
+     (unchecked-set caller sf/SERVER_FUNCTION_INVOKE
+                    (fn [args options]
+                      (map-values ((unchecked-get reference sf/SERVER_FUNCTION_INVOKE) #js [(encode-args encoding args)] options)
+                                  read)))
+     caller)))
 
 (defn -reference
   "Returns the browser side of the server function `id`."
@@ -107,16 +139,17 @@
   (let [reference (declare-reference (sf/createServerReference id) opts)]
     (cond
       (= :js encoding) reference
-      (or live broadcast) (-edn-live-caller reference)
-      :else (-edn-caller reference))))
+      (or live broadcast) (-live-caller reference encoding)
+      :else (-caller reference encoding))))
 
-(defn- edn-result
-  "Returns `result` as EDN. A response from `s/respond` keeps its status and headers, with its
-  value as EDN."
-  [result]
-  (if (sw/isResponseEnvelope result)
-    (sw/respond (pr-str (.-value result)) #js {:status (.-status result) :headers (.-headers result)})
-    (pr-str result)))
+(defn- encoded-result
+  "Returns `result` encoded with `encoding`. A response from `s/respond` keeps its status and
+  headers, with its value encoded."
+  [encoding result]
+  (let [encode (:encode (-codec encoding))]
+    (if (sw/isResponseEnvelope result)
+      (sw/respond (encode (.-value result)) #js {:status (.-status result) :headers (.-headers result)})
+      (encode result))))
 
 (defn- name-of [id]
   (subs id (inc (.lastIndexOf id "/"))))
@@ -125,8 +158,8 @@
   "Gives `f`, which server code calls directly, the metadata of `reference` and an invocation
   channel, so that Solid's `invoke` calls it in process. A `:signal` that aborts rejects the
   call, as it would over HTTP, though `f` runs on."
-  [f reference edn?]
-  (share-identity! f reference edn?)
+  [f reference encoding]
+  (share-identity! f reference encoding)
   (unchecked-set f sf/SERVER_FUNCTION_INVOKE
                  (fn [args ^js options]
                    (let [^js signal (some-> options .-signal)]
@@ -149,22 +182,22 @@
                     f
 
                     (or live broadcast)
-                    (fn [edn-args]
-                      (-> (js/Promise.resolve (apply f (reader/read-string edn-args)))
-                          (.then #(map-values % pr-str))))
+                    (fn [args]
+                      (-> (js/Promise.resolve (apply f (decode encoding args)))
+                          (.then (fn [values] (map-values values #((:encode (-codec encoding)) %))))))
 
                     :else
                     (fn [& args]
-                      (if (and (= 1 (count args)) (string? (first args)))
-                        (-> (js/Promise.resolve (apply f (reader/read-string (first args))))
-                            (.then edn-result))
+                      (if (and (= 1 (count args)) (not (instance? js/FormData (first args))))
+                        (-> (js/Promise.resolve (apply f (decode encoding (first args))))
+                            (.then #(encoded-result encoding %)))
                         ;; A form post: the arguments bound in its url, then the form's FormData
                         (apply f args))))]
     ;; As a compiled "use server" function does, so that GET can declare it
     (in-process! f
                  (declare-reference (sf/createServerReference (sf/registerServerReference id transport (name-of id)))
                                     opts)
-                 (not= :js encoding))))
+                 encoding)))
 
 (defn configure-client
   "Configures how the browser calls server functions: `:base` (the path or URL of the
@@ -192,6 +225,6 @@
   "Returns the url that a call of the server function `f` with `args` requests, for
   `{:method :get}` functions, such as to preload it with `<link rel=\"preload\" as=\"fetch\">`."
   [f & args]
-  (if (unchecked-get f edn-key)
-    (sf/serverFunctionUrl f (pr-str (vec args)))
+  (if-let [encoding (unchecked-get f encoded-key)]
+    (sf/serverFunctionUrl f (encode-args (aget encoding 0) args))
     (apply sf/serverFunctionUrl f args)))
