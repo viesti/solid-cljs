@@ -3,3 +3,6 @@ public/js
 dist
 .shadow-cljs
 .cpcache
+out
+todos.db
+.clj-kondo

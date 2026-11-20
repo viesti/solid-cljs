@@ -5,5 +5,14 @@
                 ;; Vite bundles the npm packages, since the Closure Compiler
                 ;; rejects the dynamic import() in @solidjs/web
                 :js-options {:js-provider :import}
-                :modules {:main {:entries [demo.core]}}
-                :dev {:compiler-options {:solid/refresh true}}}}}
+                :modules {:main {:entries [demo.client]}}
+                ;; Server function and server component bodies stay out of the browser build
+                :compiler-options {:solid/render :dom :solid/hydratable true}
+                :dev {:compiler-options {:solid/refresh true}}}
+          :server {:target :node-script
+                   :main demo.server/main
+                   :output-to "out/server.js"
+                   :compiler-options {:solid/render :server
+                                      :solid/hydratable true
+                                      ;; Lets demo/todos.cljc require the database on the server only
+                                      :reader-features #{:server}}}}}

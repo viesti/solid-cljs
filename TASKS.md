@@ -171,7 +171,7 @@ Decisions and findings:
   updating (checked in Node while planning step 9). Not tested: reconnects after a dropped
   connection and the `onstatus` hook.
 
-### 9. Server features in the examples — not started
+### 9. Server features in the examples — in progress
 
 Each example gets a shared todo list backed by SQLite, beside the existing in-browser todo list,
 which stays in a section of its own. Open the page in two windows and changes in one appear in
@@ -196,9 +196,25 @@ git). Writes publish to an in-process emitter that the live component reads.
 
 Sub-steps:
 
-1. shadow-cljs example: a `:server` build (`:solid/render :server`) run by Node, the browser
-   build with `:solid/render :dom` and `:solid/hydratable`, and a server entry that routes to
-   `handle-request` or the page render, with Vite in middleware mode in development.
+1. shadow-cljs example — done. Shows every feature above. Checked by hand in two browser
+   windows, in development (`yarn dev:local`, including hot reloads of browser and server code)
+   and in production (`yarn build`, `yarn start`). Findings, each fixed in the library with a
+   test:
+   - A `defserverfn` returning `s/respond` lost its headers, since the EDN transport printed
+     the envelope. `:headers` in `s/respond` also needed converting from a map.
+   - The linter reported writes inside `s/action` as writes in the component body.
+   - In hydratable builds `s/for` rendered a fixed string inside a hydration scope, so a live
+     list never updated. Lists are now component children, as Solid's compiler treats `<For>`.
+   - `defui` checked for children with `in` in the body, which warned `STRICT_READ_UNTRACKED`
+     for slot fills, whose props are reactive.
+
+   Example-side notes: Vite must pre-bundle all Solid entries (`optimizeDeps.include`), or a
+   late discovery loads two copies of `solid-js`. Vite must watch public/js in middleware mode,
+   or page reloads get stale code. An earlier commit (`f1eadf9`, the linter fix) accidentally
+   deleted the example's old core.cljs and index.html, which this example replaces. The warning
+   "A broadcast server component read the request" comes from Solid's own `renderToStream` in
+   its development build. Once the viewer count stayed one too high after a window closed,
+   which did not happen again: watch for it.
 2. Clojurific example: check whether its Vite plugin can compile namespaces for Vite's server
    rendering with server compiler options. If not, precompile the server or show fewer features.
 3. Squint example: solid-cljs macros are not available, so use Solid's own `ssr` and
@@ -216,7 +232,7 @@ The formatting commit changes whitespace only (`git diff -w` is empty).
 
 ### Status
 
-Steps 1 to 8 and 10 are done. Step 9 is not started.
+Steps 1 to 8 and 10 are done. Step 9 is in progress: sub-step 1 is done.
 
 ### Deferred
 

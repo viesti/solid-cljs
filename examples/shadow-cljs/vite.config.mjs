@@ -1,8 +1,20 @@
 import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
 
+// demo.server runs Vite in middleware mode during development and serves dist/ in production
 export default defineConfig({
   root: 'public',
-  // shadow-cljs hot reloads its own output, a reload from Vite would reset the page
-  server: { port: 3000, watch: { ignored: ['**/js/**'] } },
-  build: { outDir: '../dist', emptyOutDir: true },
+  // Bundled together up front, so that every module shares one copy of solid-js
+  optimizeDeps: {
+    include: ['solid-js', 'solid-js/refresh', '@solidjs/h', '@solidjs/web',
+              '@solidjs/web/frames', '@solidjs/web/server-functions'],
+  },
+  build: {
+    outDir: '../dist',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: resolve('public/js/main.js'),
+      output: { entryFileNames: 'assets/app.js', chunkFileNames: 'assets/[name]-[hash].js' },
+    },
+  },
 });
