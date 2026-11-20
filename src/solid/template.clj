@@ -47,13 +47,24 @@
      :id (some #(when (str/starts-with? % "#") (subs % 1)) parts)
      :classes (vec (keep #(when (str/starts-with? % ".") (subs % 1)) parts))}))
 
-(defn- dollar-form?
-  "Returns true if `x` is a call of the `solid.core/$` macro."
-  [env x]
+(defn- macro-call?
+  "Returns true if `x` is a call of one of the macros named in `macros`."
+  [env macros x]
   (and (seq? x)
        (symbol? (first x))
        (when-let [v (ana/get-expander (first x) env)]
-         (= 'solid.core/$ (symbol (str (:ns (meta v))) (str (:name (meta v))))))))
+         (contains? macros (symbol (str (:ns (meta v))) (str (:name (meta v))))))))
+
+(defn- dollar-form?
+  "Returns true if `x` is a call of the `solid.core/$` macro."
+  [env x]
+  (macro-call? env #{'solid.core/$} x))
+
+(def ^:private list-macros
+  "Macros that create Solid's `For` or `Repeat`, which Solid's compiled JSX creates in place as
+  components. On the server, a list created this way stays a function that a live server
+  component can render again."
+  #{'solid.core/for 'solid.core/index 'solid.core/repeat})
 
 (defn compilable?
   "Returns true if a `$` form with this tag compiles to a template."
@@ -229,7 +240,8 @@
                         (parse-element env (second c) (nnext c))
                         :else {:type :dynamic
                                :expr c
-                               :component? (boolean (and (dollar-form? env c) (not (keyword? (second c)))))}))
+                               :component? (boolean (or (and (dollar-form? env c) (not (keyword? (second c))))
+                                                             (macro-call? env list-macros c)))}))
                     children)
         ;; Adjacent strings become one text node in the parsed template
         merged (reduce (fn [acc node]

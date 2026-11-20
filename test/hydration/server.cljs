@@ -32,7 +32,10 @@
 (defservercomponent headline {:live true} []
   (s/ui [{:keys [editor]}]
         (let [title (s/memo #(s/from headline-source))]
-          ($ :section ($ :h1 (title)) ($ editor {:id "h"})))))
+          ;; The list is a live hole too, which the hydratable build used to render once
+          ($ :section ($ :h1 (title))
+             ($ :ul (s/for [[t] [(title) (str (title) "!")]] ($ :li t)))
+             ($ editor {:id "h"})))))
 
 (defn- read-until
   "Reads `reader` until the text read so far contains `s`, and returns a promise of that text."

@@ -72,10 +72,12 @@
                   (-> (frames/until #(frames/button container "h"))
                       (.then (fn []
                                (.. (expect (frames/texts container "h1")) (toEqual #js ["first"]))
+                                 (.. (expect (frames/texts container "section li")) (toEqual #js ["first" "first!"]))
                                (.click (frames/button container "h"))
                                (s/flush)
                                (send-update)
-                               (frames/until #(= ["second"] (vec (frames/texts container "h1"))))))
+                               (frames/until #(and (= ["second"] (vec (frames/texts container "h1")))
+                                                     (= ["second" "second!"] (vec (frames/texts container "section li")))))))
                       (.then (fn []
                                (.. (expect (frames/texts container "button.edit")) (toEqual #js ["h:1"]))
                                (.. (expect (count @frames/requests)) (toBe 1))

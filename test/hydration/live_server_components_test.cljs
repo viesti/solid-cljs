@@ -29,12 +29,14 @@
                         (.then (fn []
                                  (.. (expect (identical? server-button (frames/button container "h"))) (toBe true))
                                  (.. (expect (frames/texts container "h1")) (toEqual #js ["first"]))
+                                 (.. (expect (frames/texts container "section li")) (toEqual #js ["first" "first!"]))
                                  (.click server-button)
                                  (s/flush)
                                  (frames/until #(seq @frames/requests))))
                         (.then (fn []
                                  (send-update)
-                                 (frames/until #(= ["second"] (vec (frames/texts container "h1"))))))
+                                 (frames/until #(and (= ["second"] (vec (frames/texts container "h1")))
+                                                     (= ["second" "second!"] (vec (frames/texts container "section li")))))))
                         (.then (fn []
                                  (.. (expect (frames/texts container "button.edit")) (toEqual #js ["h:1"]))
                                  (.. (expect (first @frames/requests)) (toContain "/live/"))))))))))))
