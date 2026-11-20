@@ -138,6 +138,12 @@
             (#{:class :id} k)
             acc
 
+            ;; Frames morph server markup by this key; the browser's own elements are never morphed
+            (= k :$key)
+            (if (sc/literal? v)
+              (cond-> acc (literal-attr "_key" v) (update :ssr-html conj (literal-attr "_key" v)))
+              (update acc :ssr conj `(solid.core/-ssr-attr "_key" ~v)))
+
             (= k :&)
             (let [explicit (set (keep #(when (keyword? %) (props/attr-name (name %))) (keys attrs)))]
               (-> acc

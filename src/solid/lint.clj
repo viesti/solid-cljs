@@ -99,6 +99,7 @@
     'solid.core/pending? 's/pending?
     'solid.core/latest 's/latest
     'solid.core/resolve 's/resolve
+    'solid.server-components/server-component 'sc/server-component 'server-component
     ;; The $ macro creates tracked scopes for element expressions
     'solid.core/$ 's/$ '$
     'solid.core/$h 's/$h '$h})

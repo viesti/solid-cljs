@@ -858,28 +858,32 @@
       "Renders `root`, an element created with `$` or a component, to an HTML string on the
   server. Async reads that are still pending render their `s/loading` fallbacks.
 
-  Options are `:nonce`, `:render-id`, `:no-scripts`, and `:on-head`, a function that receives
-  the HTML of the head tags (see `use-head`) when the rendered HTML has no `</head>`."
+  Options are `:nonce`, `:render-id`, `:no-scripts`, `:on-head`, a function that receives
+  the HTML of the head tags (see `use-head`) when the rendered HTML has no `</head>`, and
+  `:plugins`, serialization plugins such as `solid.server-components/plugin`."
       ([root] (render-to-string root nil))
-      ([root {:keys [nonce render-id no-scripts on-head]}]
+      ([root {:keys [nonce render-id no-scripts on-head plugins]}]
        (sw/renderToString (root-thunk root) (render-options {"nonce" nonce "renderId" render-id
-                                                             "noScripts" no-scripts "onHead" on-head}))))
+                                                             "noScripts" no-scripts "onHead" on-head
+                                                             "plugins" (some-> plugins into-array)}))))
 
 (defn render-to-string-async
       "Returns a promise of the HTML of `root` once every async read has settled."
       ([root] (render-to-string-async root nil))
-      ([root {:keys [nonce render-id no-scripts on-head]}]
+      ([root {:keys [nonce render-id no-scripts on-head plugins]}]
        (js/Promise.resolve
          (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce "renderId" render-id
-                                                               "noScripts" no-scripts "onHead" on-head})))))
+                                                               "noScripts" no-scripts "onHead" on-head
+                                                               "plugins" (some-> plugins into-array)})))))
 
 (defn render-to-stream
       ([root] (render-to-stream root nil))
-      ([root {:keys [nonce render-id no-scripts on-head on-complete-shell on-complete-all]}]
+      ([root {:keys [nonce render-id no-scripts on-head on-complete-shell on-complete-all plugins]}]
        (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce
                                                              "renderId" render-id
                                                              "noScripts" no-scripts
                                                              "onHead" on-head
+                                                             "plugins" (some-> plugins into-array)
                                                              "onCompleteShell" on-complete-shell
                                                              "onCompleteAll" on-complete-all}))))
 

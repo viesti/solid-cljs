@@ -115,35 +115,38 @@ their own tests: `enable-external-source`, `configure-client-errors`, `reset-err
   (src/solid/server.cljs, server only): done. Tests in test/vitest/features.cljs ("Assets,
   trusted HTML and performance tracks") and `request-scope` in test/solid/ssr_test.cljs.
 
-### 7. Server components — todo
+### 7. Server components — done
 
-Solid's server components are `"use server"` functions that return a template; the browser gets
-their markup, never their code (guide: node_modules/@solidjs/web/skills/server-components/SKILL.md).
-What solid-cljs would need, from reading the guide and the `@solidjs/web/frames` types:
+`defservercomponent` and `server-component` in src/solid/server_components.clj; runtime in
+src/solid/server_components.cljs (`install!`, `configure-server!`, `plugin`, `async-arg`).
+`s/ui` makes anonymous components, `:$key` on an element renders `_key` on the server and
+nothing in the browser, and the render functions take `:plugins`. Tests:
+test/solid/server_components_test.cljs (frame stream and document render, Node) and
+test/hydration/server_components_test.cljs (document adoption without requests, and a
+streamed component whose keyed fill keeps its state across a refetch that reorders the list),
+with fixtures written by test/hydration/server.cljs.
 
-- A macro on top of `defserverfn` (working name `defservercomponent`) whose server body returns
-  a component, and whose result the handler streams as a frame
-  (`frameTransformResult` and related in `@solidjs/web/frames/server`).
-- Slots: a server component's props name slots (`Slot<Props>`), placed in its markup as
-  elements (`<props.editor id={...} />`), each rendered between markers that the client fills
-  with a client component. Find what Solid's compiler emits for a slot placement by compiling
-  the guide's example with `@solidjs/vite-plugin` and `serverFunctions: {components: true}`,
-  then emit the same from `$` when the tag is a slot of a server component's props.
-- `$key` on elements for morph identity across refetches, and `asyncArg` for async slot props.
-- The client: `installServerComponents` from `@solidjs/web/frames/client`, and a component
-  that renders a server component's frame with slot fills from the client.
-- Tests: render a server component in the Node test build, apply its frame in a browser test,
-  and check slot fills and a refetch that keeps a keyed fill's state.
+Decisions and findings:
+
+- Slots need no compiler support. Solid's compiler emits a slot placement as an ordinary
+  component call, so `($ editor {...})` with the slot as the tag is enough.
+- Ids are the namespace and name joined with slashes (`app/todos/todo-list`). Frames ignore a
+  boundary id that contains a dot (`isBoundaryId`), so `"<ns>/<name>"` broke document adoption.
+- Arguments travel as one EDN string on both sides, including direct calls during a document
+  render, so the document's frame address matches the browser's.
+- `defui` components now resolve their element when called. Solid's frames runtime calls the
+  server component and slot fills directly, and an unresolved element computed its hydration key
+  outside any owner.
+- `install!` indexes the document's frames on first use, so it must run after the body exists.
+- `asyncArg` has no test of its own, and live server components (`live`) are not wrapped.
 
 ### Status
 
-Steps 1 to 5 are done, and the examples are pinned to the last library commit and checked
-against it. What remains is under Deferred.
+Steps 1 to 5 and 7 are done. Step 6 is done except for `dispatchAsInteraction`.
 
 ### Deferred
 
-Server components (`@solidjs/web/frames`), `storage`, `performance-tracks`, trusted types,
-`dispatchAsInteraction` and the asset functions.
+`dispatchAsInteraction`, and live server components.
 
 Not planned: a Clojars release. The fork is used through git dependencies pinned to a commit
 on `viesti/solid-2`.

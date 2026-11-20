@@ -83,8 +83,28 @@
   [params body]
   (str (hash (clojure.string/replace (pr-str params body) #"__\d+" ""))))
 
+(defn- component-fn
+  "Returns the function form of a component with the parameter vector `params`: it wraps the
+  JavaScript props for keyword lookups, and props destructured with a map stay reactive."
+  [env sym params body lint?]
+  (let [props-param (first params)
+        props-sym (if (map? props-param)
+                    (core/or (:as props-param) (gensym "props"))
+                    (core/or props-param (gensym "props")))
+        {:keys [lookups kept remaining]} (core/when (map? props-param)
+                                           (props-lookups props-param props-sym body))
+        body (walk/postwalk-replace lookups body)]
+    (core/when lint?
+      (lint/lint-component-body! sym body env)
+      (core/when (seq kept) (lint/warn-destructured-props! sym kept env)))
+    ;; Resolved here, as compiled JSX is, since Solid's runtime calls some components directly
+    `(fn ~@(core/when sym [sym]) [props#]
+       (let [~props-sym (solid.core/-props props#)
+             ~@(core/when remaining [remaining props-sym])]
+         (solid.core/-resolve (do ~@body))))))
+
 (defmacro defui
-          "Defines a Solid UI component. Supports docstrings and metadata.
+  "Defines a Solid UI component. Supports docstrings and metadata.
 
   Props destructured with a map in the argument list stay reactive: each use of a destructured
   name reads the prop at that point. A name that the body binds again, in a binding vector or
@@ -97,43 +117,41 @@
     [{:keys [on-click children]}]
     ($ :button {:on-click on-click} children))
   ```"
-          {:arglists '([name docstring? attr-map? [props] & body])}
-          [sym & args]
-          (let [[docstring args] (if (string? (first args))
-                                     [(first args) (rest args)]
-                                     [nil args])
-                [attr-map args] (if (map? (first args))
-                                    [(first args) (rest args)]
-                                    [nil args])
-                [params & body] args
-                props-param (first params)
-                meta-map (core/cond-> {}
-                                      docstring (assoc :doc docstring)
-                                      attr-map (merge (dissoc attr-map :solid/lint)))
-                props-sym (if (map? props-param)
-                            (core/or (:as props-param) (gensym "props"))
-                            (core/or props-param (gensym "props")))
-                {:keys [lookups kept remaining]} (core/when (map? props-param)
-                                                   (props-lookups props-param props-sym body))
-                source-body body
-                body (walk/postwalk-replace lookups body)]
-               (core/when-not (false? (:solid/lint attr-map))
-                 (lint/lint-component-body! sym body &env)
-                 (core/when (seq kept) (lint/warn-destructured-props! sym kept &env)))
-               (let [component `(fn ~sym [props#]
-                                  (let [~props-sym (solid.core/-props props#)
-                                        ~@(core/when remaining [remaining props-sym])]
-                                    ~@body))]
-                 (if (get-in @cljs.env/*compiler* [:options :solid/refresh])
-                   ;; Hot reloads swap instances of the proxy to the new definition
-                   ;; The signature is the source's hash, so unchanged components keep their state
-                   `(def ~(with-meta sym meta-map)
-                      (solid.core/-refresh-component ~(str (-> &env :ns :name) "/" sym)
-                                                     ~component
-                                                     ~(core/when-let [line (:line (meta &form))]
-                                                        (str (-> &env :ns :name) ":" line))
-                                                     ~(source-signature params source-body)))
-                   `(def ~(with-meta sym meta-map) ~component)))))
+  {:arglists '([name docstring? attr-map? [props] & body])}
+  [sym & args]
+  (let [[docstring args] (if (string? (first args))
+                           [(first args) (rest args)]
+                           [nil args])
+        [attr-map args] (if (map? (first args))
+                          [(first args) (rest args)]
+                          [nil args])
+        [params & body] args
+        meta-map (core/cond-> {}
+                   docstring (assoc :doc docstring)
+                   attr-map (merge (dissoc attr-map :solid/lint)))
+        component (component-fn &env sym params body (not (false? (:solid/lint attr-map))))]
+    (if (get-in @cljs.env/*compiler* [:options :solid/refresh])
+      ;; Hot reloads swap instances of the proxy to the new definition
+      ;; The signature is the source's hash, so unchanged components keep their state
+      `(def ~(with-meta sym meta-map)
+         (solid.core/-refresh-component ~(str (-> &env :ns :name) "/" sym)
+                                        ~component
+                                        ~(core/when-let [line (:line (meta &form))]
+                                           (str (-> &env :ns :name) ":" line))
+                                        ~(source-signature params body)))
+      `(def ~(with-meta sym meta-map) ~component))))
+
+(defmacro ui
+  "Returns an anonymous component, which takes props as a `defui` component does. A server
+  component returns one, closing over the data it loaded.
+  ```clojure
+  (s/ui [{:keys [editor]}]
+    ($ :ul (s/for [t todos] ($ :li (:title t) ($ editor {:$key (:id t) :id (:id t)})))))
+  ```"
+  {:arglists '([name? [props] & body])}
+  [& args]
+  (let [[sym [params & body]] (if (symbol? (first args)) [(first args) (rest args)] [nil args])]
+    (component-fn &env (core/or sym 'ui) params body true)))
 
 (defn- wrap-children [children]
        (core/for [x children]

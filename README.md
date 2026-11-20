@@ -181,6 +181,13 @@ A name that the body binds again, in a `let`, `fn` parameters or an `s/for` bind
 inner binding, so that prop is read once, when the component is created. The compiler warns
 about it. An attribute map of `{:solid/lint false}` turns the component's warnings off.
 
+`s/ui` returns an anonymous component that takes props as `defui` does. It suits a component
+that closes over local values, such as the one a server component returns.
+
+```clojure
+(s/ui [{:keys [label]}] ($ :span label))
+```
+
 `$` creates Solid element
 
 ```clojure
@@ -711,6 +718,68 @@ The browser build must not contain the function bodies, so builds that use `defs
 refuses `defserverfn` otherwise. Clojurific compiles each namespace once for both, so it
 cannot use server functions yet. A browser source map with embedded sources still contains the
 original code, so do not publish such source maps for these namespaces.
+
+### Server components
+
+A server component is a server function whose result is a component. The browser receives the
+component's markup and never its code. `defservercomponent` in `solid.server-components`
+defines one, and its body returns a component made with `s/ui` or `defui`, or a promise of one:
+
+```clojure
+(ns app.todos
+  (:require [solid.core :as s :refer [$]]
+            [solid.server-components :as sc :refer [defservercomponent]]))
+
+(defservercomponent todo-list [filter]
+  (.then (db/todos filter)
+         (fn [todos]
+           (s/ui [{:keys [editor pending]}]
+             ($ :ul
+                (s/for [[t] todos]
+                  ($ :li {:$key (:id t)} (:title t) ($ editor {:$key (:id t) :id (:id t)})))
+                ($ pending))))))
+```
+
+The component's props are slots. A slot is a client component that the browser passes in, and
+the server's markup places it with `$`, with props that the server sends along as data. Slot
+props should be values that Solid's serializer handles, such as strings, numbers and JavaScript
+objects. `:$key` on an element or a slot gives it an identity across updates, so that a slot
+keeps its state when the list reorders. `sc/async-arg` marks a promise passed to a slot, which
+the slot reads as its settled value.
+
+In the browser, `sc/server-component` returns a component that renders a call of the server
+component, and slots are passed to it as props:
+
+```clojure
+(s/defui editor [{:keys [id]}]
+  (let [n (s/signal 0)]
+    ($ :button {:on-click #(swap! n inc)} id ": " @n)))
+
+(s/defui page []
+  (let [filter (s/signal "all")
+        todos (sc/server-component (todo-list @filter))]
+    (s/loading ($ :p "Loading")
+      ($ todos {:editor editor :pending (s/ui [] ($ :i "adding"))}))))
+```
+
+When the call changes, here when `filter` does, the browser requests the new markup and
+updates the existing DOM in place. Slots with the same `:$key` keep their state.
+
+The server calls `(sc/configure-server!)` once, which makes `handle-request` answer server
+components with frame streams. A page rendered on the server renders its server components
+into the document, with their slots, when the render is given `{:plugins [sc/plugin]}`. The
+render needs the request event, as in a server function:
+
+```clojure
+(solid.server/provide-request-event (solid.server/create-request-event request)
+  #(s/render-to-stream ($ page) {:plugins [sc/plugin]}))
+```
+
+The browser calls `(sc/install!)` once, after the document's body has loaded and before
+`s/hydrate`. Hydration then adopts the server components in the document without requests.
+As with server functions, browser builds set `:solid/render :dom` and server builds `:server`.
+Server component ids are the namespace and the name joined with slashes, such as
+`app/todos/todo-list`, because Solid's frames take an id containing a dot as something else.
 
 ### Hydration
 

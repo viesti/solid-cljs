@@ -19,6 +19,8 @@ app needs.
 - Attribute names other than events are passed to the DOM as written (`:tabindex`,
   `:stroke-width`), and numeric styles get `px` by CSS property.
 - Directives always receive an accessor.
+- A `defui` component creates its element when it is called, as a component compiled from JSX
+  does, so components that Solid's runtime calls directly, such as slot fills, render in place.
 
 ### Added
 
@@ -53,6 +55,8 @@ app needs.
 - Custom elements are created as Solid's compiler creates them.
 - Hot reloading that keeps component state, with `:solid/refresh`.
 - `solid.squint/store`.
+- Server components with `solid.server-components/defservercomponent`, slots, `:$key` on
+  elements, and `s/ui` for anonymous components. Render functions take `:plugins`.
 
 ### Removed
 
