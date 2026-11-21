@@ -654,6 +654,10 @@ CLI is not installed here, and running `npx skills` was refused by this session'
 check, so neither `claude plugin validate` nor an install has been run. The JSON files parse,
 and the formats follow the vendors' documentation as of November 2026.
 
+The README and the four examples pin `aea9e45`, the commit that adds the skill, so that a
+project pinning the README's commit can install the skill from the same commit. All four build
+against it and pass `yarn test:browser`, and the JVM example's `yarn test` passes.
+
 ### Status
 
 Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
