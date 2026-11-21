@@ -1,0 +1,22 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.7"}}
+ :aliases
+ {;; The JVM server
+  :server {:extra-deps {ring/ring-jetty-adapter {:mvn/version "1.15.6"}
+                        metosin/reitit {:mvn/version "0.11.0"}
+                        com.github.seancorfield/next.jdbc {:mvn/version "1.4.72"}
+                        org.xerial/sqlite-jdbc {:mvn/version "3.54.1.0"}
+                        org.slf4j/slf4j-simple {:mvn/version "2.0.20"}}
+           ;; sqlite-jdbc loads a native library, which Java 25 warns about otherwise
+           :jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
+  ;; A REPL with the server: (start!) and (stop!) in dev/user.clj
+  :dev {:extra-paths ["dev"]}
+  ;; The browser build, which shadow-cljs.edn names
+  :cljs {:extra-deps {com.github.roman01la/solid-cljs {:git/url "https://github.com/viesti/solid-cljs"
+                                                       :git/sha "8d259d6a56aed49fe96b5c9c2dfa7017ef53459d"}
+                      thheller/shadow-cljs {:mvn/version "3.5.14"}}}
+  ;; Uses the solid-cljs checkout this folder lives in
+  :local {:override-deps {com.github.roman01la/solid-cljs {:local/root "../.."}}}
+  ;; clojure -T:build uber
+  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.14"}}
+          :ns-default build}}}

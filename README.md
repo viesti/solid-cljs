@@ -164,6 +164,11 @@ server.
 - [examples/clojurific](examples/clojurific) uses solid-cljs with Clojurific and a Hono server.
 - [examples/squint](examples/squint) uses Squint with Solid's own compiler and Vite plugin.
 
+A fourth example keeps the shared todo list but moves its server to the JVM:
+
+- [examples/jvm](examples/jvm) renders in the browser only and talks to a Clojure server, a
+  reitit API with SQLite, which streams changes to every open page as server-sent events.
+
 ## API
 
 Functions and macros below are a part of `solid.core` namespace:

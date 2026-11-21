@@ -11,8 +11,11 @@ step as it changes, and record decisions under the step.
   (browser tests, compiled normally and with `:solid/hydratable`, plus the hydration round
   trip). Run `rm -rf .shadow-cljs/builds` first after changing macros or compiler options.
 - After pushing library changes, pin the new commit in README.md, examples/shadow-cljs/deps.edn,
-  examples/clojurific/deps.edn, examples/squint/squint.edn and examples/squint/README.md, check
-  the three examples against the pushed commit, and push again.
+  examples/clojurific/deps.edn, examples/jvm/deps.edn, examples/squint/squint.edn and
+  examples/squint/README.md, check the four examples against the pushed commit, and push again.
+- The remote is named `origin` in some checkouts.
+- Toolchain on this machine: Temurin JDK 25 in ~/.local/jdk/current and the Clojure CLI in
+  ~/.local/bin, neither on the default PATH; Playwright's Chromium for `yarn vitest`.
 - Reference output: compile JSX with `@solidjs/babel-plugin` from the scratchpad project
   jsxref (`node compile.cjs file.jsx dom|ssr`, `node h.cjs file.jsx dom|ssr` for hydratable).
 - Where things are: macros in src/solid/core.clj, template compiler in src/solid/template.clj,
@@ -413,7 +416,7 @@ comment.
    to an empty string, with a `SerovalUnsupportedTypeError` in the log. Strings and JS
    objects work. Step 14 tracks it.
 
-### 13. A JVM backend example — not started
+### 13. A JVM backend example — in progress (13.1 done)
 
 A fourth example: a solid-cljs frontend whose backend runs on the JVM (Clojure), for teams
 whose servers are Clojure rather than Node.js. It keeps the shared todo list from step 9
@@ -460,6 +463,29 @@ Protocol findings, from wire captures of EDN-encoded calls (`@solidjs/web` 2.0.3
 
 Work, in order:
 
+Sub-step 1 is done: examples/jvm. Checked with a Playwright script in two windows, against the
+uberjar and in development through Vite (sign-in, adding with the saved time, ticking, renaming
+with a draft open in the other window, deleting, the viewer count rising and falling, no console
+errors), plus a hot reload that kept another component's state and the REPL's `start!`,
+namespace reload and `stop!`. Built against the pinned `8d259d6`. Findings:
+
+- http-kit (2.8.1 and 2.9.0-beta4) never reported a closed streaming response: `on-close` did
+  not run and `send!` kept returning true after the client left, so the viewer count never
+  dropped. The example uses Jetty 12 through ring-jetty-adapter instead, with a blocking
+  `StreamableResponseBody` per stream on virtual threads (`QueuedThreadPool` with a virtual
+  threads executor, Java 21 or later). A write is how the server notices a closed connection,
+  so a five-second heartbeat makes the count drop within about ten seconds.
+- Vite's dev server reloads the whole page whenever shadow-cljs writes public/js, which loses
+  component state; `server.hmr: false` leaves reloads to shadow-cljs and `:solid/refresh`.
+- `(.then promise :name)` does not work: a promise's `then` ignores a keyword, which is not a
+  JavaScript function, and passes the whole value through.
+- sqlite-jdbc loads a native library, which Java 25 warns about. The `:server` alias passes
+  `--enable-native-access=ALL-UNNAMED`, and the uberjar's manifest sets `Enable-Native-Access`.
+- Development runs Vite on port 3000 with `/api` proxied to the JVM on 8080; production serves
+  everything from the uberjar on 8080.
+- The example has the shared list only, without the counter, the local todo list and the
+  greeting of the other examples, since those show nothing about the backend.
+
 1. The example with reitit: http-kit or Jetty, reitit routes for the todo API (EDN or transit
    bodies with muuntaja), next.jdbc with SQLite, the sign-in cookie, a shadow-cljs browser
    build, and live updates for other viewers through server-sent events read with `s/from`.
@@ -483,7 +509,8 @@ empty page (see step 12.5). Reproduce it in test/solid/ssr_test.cljs first, then
 ### Status
 
 Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
-proposal not to build the plugin encoding). Steps 13 and 14 are not started.
+proposal not to build the plugin encoding). Step 13 is in progress, with 13.1 done. Step 14 is
+not started.
 
 ### Deferred
 

@@ -1,0 +1,13 @@
+{:deps {:aliases [:cljs]}
+ :builds {:app {:target :esm
+                :output-dir "public/js"
+                :asset-path "/js"
+                ;; Vite bundles the npm packages, since the Closure Compiler
+                ;; rejects the dynamic import() in @solidjs/web
+                :js-options {:js-provider :import}
+                :modules {:main {:entries [demo.client]}}
+                ;; The page renders in the browser only
+                :compiler-options {:solid/render :dom}
+                :dev {:compiler-options {:solid/refresh true}}
+                ;; Reloads public/css/style.css in the page when it changes
+                :devtools {:watch-dir "public"}}}}

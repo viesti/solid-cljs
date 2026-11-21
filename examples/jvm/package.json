@@ -1,0 +1,19 @@
+{
+  "name": "solid-cljs-jvm-demo",
+  "private": true,
+  "scripts": {
+    "dev": "shadow-cljs watch app & clojure -M:server -m demo.server & vite",
+    "dev:local": "shadow-cljs -A:local watch app & clojure -M:server -m demo.server & vite",
+    "build": "shadow-cljs release app && vite build && clojure -T:build uber",
+    "start": "java -jar target/todos.jar"
+  },
+  "dependencies": {
+    "@solidjs/h": "^2.0.2",
+    "@solidjs/web": "^2.0.3",
+    "solid-js": "^2.0.3"
+  },
+  "devDependencies": {
+    "shadow-cljs": "^3.5.14",
+    "vite": "^7.3.0"
+  }
+}
