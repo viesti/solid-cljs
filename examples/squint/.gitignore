@@ -3,3 +3,5 @@ out
 dist
 .nrepl-port
 todos.db
+test-results
+playwright-report

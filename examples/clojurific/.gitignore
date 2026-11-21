@@ -5,3 +5,5 @@ target
 .cpcache
 todos.db
 .clj-kondo
+test-results
+playwright-report

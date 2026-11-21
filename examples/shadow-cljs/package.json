@@ -5,7 +5,8 @@
     "dev": "rm -f out/server.js && (shadow-cljs watch app server & (until [ -f out/server.js ]; do sleep 1; done; node out/server.js))",
     "dev:local": "rm -f out/server.js && (shadow-cljs -A:local watch app server & (until [ -f out/server.js ]; do sleep 1; done; node out/server.js))",
     "build": "shadow-cljs release app server && vite build",
-    "start": "NODE_ENV=production node out/server.js"
+    "start": "NODE_ENV=production node out/server.js",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@solidjs/h": "^2.0.2",
@@ -13,6 +14,7 @@
     "solid-js": "^2.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "shadow-cljs": "^3.5.14",
     "vite": "^7.3.0"
   }

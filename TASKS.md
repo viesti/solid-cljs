@@ -14,6 +14,9 @@ step as it changes, and record decisions under the step.
   examples/clojurific/deps.edn, examples/jvm/deps.edn, examples/squint/squint.edn and
   examples/squint/README.md, check the four examples against the pushed commit, and push again.
 - The remote is named `origin` in some checkouts.
+- Examples: `yarn build` then `yarn test:browser` in each example folder runs the Playwright
+  test of the shared list against its production server (`BASE_URL=... yarn test:browser` for
+  a running dev server). Run it in all four after re-pinning.
 - Toolchain on this machine: Temurin JDK 25 in ~/.local/jdk/current and the Clojure CLI in
   ~/.local/bin, neither on the default PATH; Playwright's Chromium for `yarn vitest`.
 - Reference output: compile JSX with `@solidjs/babel-plugin` from the scratchpad project
@@ -537,11 +540,22 @@ empty page (see step 12.5). Reproduce it in test/solid/ssr_test.cljs first, then
   solid-cljs turns into ClojureScript data when a memo is read in the browser.
 - Document that async server values must be strings or JavaScript data.
 
+### 15. Browser tests for the examples — done
+
+Each example has test/browser/shared-todos.spec.mjs (the same file in all four) and a
+playwright.config.mjs that starts its production server on an empty database in the system's
+temporary folder, or tests `BASE_URL` when it is set. `@playwright/test` is pinned to 1.65.1,
+the version of the repository's own devDependency, so the installed Chromium matches. The JVM
+example runs the spec twice, through the reitit API and through server functions. All four
+pass against their production builds (pinned `8d259d6`), and the JVM example also passed
+against `yarn dev`. The spec waits for the viewer count to settle at one before it opens the
+second window, since the JVM takes about ten seconds to notice a closed stream.
+
 ### Status
 
 Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
 proposal not to build the plugin encoding). Step 13 is done, with an open question on
-moving the JVM server functions into the library. Step 14 is not started.
+moving the JVM server functions into the library. Step 14 is not started. Step 15 is done.
 
 ### Deferred
 

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "squint compile && vite",
     "build": "squint compile && vite build",
-    "start": "node dist/server/node.js"
+    "start": "node dist/server/node.js",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@solidjs/web": "^2.0.3",
@@ -13,6 +14,7 @@
   },
   "devDependencies": {
     "@babel/core": "^8.1.2",
+    "@playwright/test": "1.65.1",
     "@solidjs/babel-plugin": "^2.0.2",
     "@solidjs/vite-plugin": "3.0.1",
     "squint-cljs": "0.16.214",

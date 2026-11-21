@@ -24,6 +24,27 @@ can point elsewhere. `yarn build` writes the browser bundle to dist/client and a
 dist/server, and `yarn start` runs it. The dev server also starts Squint's nREPL server on port
 1339, which evaluates forms in the open page.
 
+## Browser tests
+
+test/browser/shared-todos.spec.mjs checks the shared list in two windows with Playwright:
+signing in, adding a todo and its saved time, a second window signed in by the cookie, the
+viewer count, an open edit keeping its draft while the other window ticks and adds todos,
+renaming, deleting and console errors.
+
+```bash
+npx playwright install chromium   # once
+yarn build
+yarn test:browser
+```
+
+`yarn test:browser` starts the production server on port 3000 with an empty database in the system's
+temporary folder. To test a server that is already running, such as `yarn dev`, set
+`BASE_URL`:
+
+```bash
+BASE_URL=http://localhost:3000 yarn test:browser
+```
+
 ## How it is set up
 
 - **squint.edn** compiles `src/` to `.jsx` files in `out/`. Its `:deps` pulls the `solid.squint`

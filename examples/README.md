@@ -13,4 +13,5 @@ a self-contained project that depends on solid-cljs through a git dependency.
 and server-sent events, or `defserverfn` calls that the JVM answers in Solid's server function
 protocol, with the page rendered in the browser by shadow-cljs code.
 
-Each folder's README explains how to run it.
+Each folder's README explains how to run it. Each also has the same Playwright test of the
+shared todo list in two windows: `yarn build`, then `yarn test:browser`.

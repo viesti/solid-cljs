@@ -8,3 +8,5 @@ todos.db
 .clj-kondo
 .lsp
 .nrepl-port
+test-results
+playwright-report

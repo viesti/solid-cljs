@@ -56,6 +56,29 @@ answers (test/protocol.mjs, started by test/demo/server_functions_test.clj).
 `yarn dev:local` builds against the solid-cljs checkout this folder lives in instead of the
 pinned commit, through the `:local` alias in deps.edn.
 
+## Browser tests
+
+test/browser/shared-todos.spec.mjs checks the shared list in two windows with Playwright:
+signing in, adding a todo and its saved time, a second window signed in by the cookie, the
+viewer count, an open edit keeping its draft while the other window ticks and adds todos,
+renaming, deleting and console errors. It runs twice, once with the reitit API and once with
+`?via=server-functions`. The JVM notices a closed window within about ten seconds, so a run
+takes about half a minute.
+
+```bash
+npx playwright install chromium   # once
+yarn build
+yarn test:browser
+```
+
+`yarn test:browser` starts the uberjar on port 8080 with an empty database in the system's
+temporary folder. To test a server that is already running, such as `yarn dev`, set
+`BASE_URL`:
+
+```bash
+BASE_URL=http://localhost:3000 yarn test:browser
+```
+
 ## What it shows
 
 | In the app | How | Where |

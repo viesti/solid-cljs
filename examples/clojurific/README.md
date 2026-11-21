@@ -24,6 +24,27 @@ which `TODOS_DB` can point elsewhere.
 dist/server/index.js, and `yarn start` runs it. `yarn dev:local` and `yarn build:local` build
 against the solid-cljs checkout this folder lives in instead of the pinned commit.
 
+## Browser tests
+
+test/browser/shared-todos.spec.mjs checks the shared list in two windows with Playwright:
+signing in, adding a todo and its saved time, a second window signed in by the cookie, the
+viewer count, an open edit keeping its draft while the other window ticks and adds todos,
+renaming, deleting and console errors.
+
+```bash
+npx playwright install chromium   # once
+yarn build
+yarn test:browser
+```
+
+`yarn test:browser` starts the production server on port 3000 with an empty database in the system's
+temporary folder. To test a server that is already running, such as `yarn dev`, set
+`BASE_URL`:
+
+```bash
+BASE_URL=http://localhost:3000 yarn test:browser
+```
+
 ## How it differs from the shadow-cljs example
 
 src/demo/app.cljs, client.cljs and db.cljs are the same files as in the shadow-cljs example, and
