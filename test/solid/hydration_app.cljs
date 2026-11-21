@@ -31,10 +31,29 @@
     ($ :section#async
        (s/loading ($ :p "loading") ($ :p (text) ", world")))))
 
+(defui async-data
+  "An async read whose value is ClojureScript data, which the server serializes for hydrate."
+  []
+  (let [todos (s/memo #(js/Promise.
+                        (fn [resolve]
+                          (js/setTimeout
+                           (fn [] (resolve [{:id 1 :title "first" :tags #{:a}
+                                             :at (js/Date. 0) :id2 #uuid "00000000-0000-0000-0000-000000000001"
+                                             :kind 'task :ns/k :x/y :path '(1 2) :by-pair {[1 2] "pair"}}
+                                            {:id 2 :title "second" :tags #{}}]))
+                           60))))
+        shown (s/signal "")]
+    ($ :section#data
+       (s/loading ($ :p "loading")
+                  ($ :ul (s/for [[t] (todos)] ($ :li (:title t)))))
+       ($ :button {:on-click #(reset! shown (pr-str [(vector? (todos)) (todos) (get-in (todos) [0 :by-pair [1 2]]) (keyword? (get-in (todos) [0 :ns/k]))]))} "show")
+       ($ :pre @shown))))
+
 (defui app []
   ($ :main
      ($ counter)
      ($ todo-list)
      ($ toggle)
      ($ card {:title "Card"} ($ :p "body"))
-     ($ async-greeting)))
+     ($ async-greeting)
+     ($ async-data)))

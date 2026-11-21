@@ -417,7 +417,7 @@ comment.
    Found on the way, an existing bug: on the server, an async `s/memo` whose promise resolves
    to ClojureScript data (a vector, keyword or map) makes `s/render-to-string-async` resolve
    to an empty string, with a `SerovalUnsupportedTypeError` in the log. Strings and JS
-   objects work. Step 14 tracks it.
+   objects work. Step 14 fixed it.
 
 ### 13. A JVM backend example — done (13.2 moved to the library in step 16)
 
@@ -530,15 +530,40 @@ examples/README.md.
    whether it stays in the example or becomes a library.
 3. README for the example, and a line in the main README's example list.
 
-### 14. Async values holding Clojure data during server rendering — not started
+### 14. Async values holding Clojure data during server rendering — done
 
-On the server, an async `s/memo` whose promise resolves to ClojureScript data renders an
-empty page (see step 12.5). Reproduce it in test/solid/ssr_test.cljs first, then choose:
+On the server, an async `s/memo` whose promise resolves to ClojureScript data rendered an
+empty page (see step 12.5): seroval walked the vector's internals and threw
+`SerovalUnsupportedTypeError`. The user asked (2026-11-21) to fix it. Done, carrying the value:
 
-- Report a clear error instead of an empty page.
-- Carry the value: seroval plugins whose inline JavaScript builds marker objects, which
-  solid-cljs turns into ClojureScript data when a memo is read in the browser.
-- Document that async server values must be strings or JavaScript data.
+- A seroval plugin (src/solid/core.cljs, `cljs-data-plugin`) that `s/render-to-string`,
+  `-async` and `-stream` (and so `solid.server/render-to-response`) always put first in their
+  plugins, a new one per render. It takes collections, keywords, symbols and UUIDs and writes
+  each as `_$CLJS("<type>", <contents>)`: a map as a flat array of keys and values, a vector,
+  set or list as an array of items, a keyword, symbol or UUID as its string. Seroval serializes
+  the contents, so strings, numbers, `js/Date` and JavaScript data inside keep their types and
+  shared values stay shared. Records and sorted maps become maps, other sequences lists, and
+  metadata is dropped.
+- The inline scripts may run before the ClojureScript bundle loads, so a render's first value
+  defines `self._$CLJS` when it is missing, as a function that queues and returns a
+  placeholder object; later values call it by name (one definition per render: seroval makes
+  a new context for each plugin call, so the plugin carries the state).
+- `s/hydrate` builds each queued placeholder's value with `cljs.core` constructors and turns
+  the placeholder into it in place (prototype and own fields), so every reference that the
+  hydration data holds sees real ClojureScript data. The queue holds contents before the
+  collections that hold them, so keys are real keywords before their maps are built. It then
+  replaces `self._$CLJS` with the constructor for values that stream in later. A memo's value
+  is used as it is, with no cost on reads.
+- First tried EDN (`pr-str` and `cljs.reader/read-string`): the release bundle of the dev app,
+  which never hydrates, grew from 152,911 to 178,655 bytes (5.7 kB gzipped) because
+  `cljs.reader`'s tag tables are kept. The structural form keeps it at 152,911 bytes. Repeating
+  the definition with every value cost about 100 bytes a value, hence once per render.
+- Tests: `async-clojure-data` in test/solid/ssr_test.cljs (failed before the fix with an
+  empty render), and `async-data` in solid.hydration-app, which the string and stream
+  hydration tests hydrate in Chromium and check that the memo's value is a vector of maps with
+  a set, a `js/Date`, a UUID, a symbol, a namespaced keyword, a list and a vector map key, plus
+  the direct `self._$CLJS` path. The hydration server also
+  passed when compiled with `:advanced`. All library suites pass.
 
 ### 15. Browser tests for the examples — done
 
@@ -638,7 +663,8 @@ The user approved the proposal (2026-11-21). Done:
   and checked against the macros (`s/for`'s index is derefable, `s/repeat` takes `:fallback`,
   `s/dynamic` renders without props, `s/children` returns an accessor). The frontmatter follows
   the agentskills.io spec (name matches the folder, description 465 of 1024 characters,
-  license EPL-2.0). The server reference states the JVM caveat and the step 14 bug.
+  license EPL-2.0). The server reference states the JVM caveat and, since step 14, how
+  ClojureScript data in async values travels.
 - test/vitest/skill_examples.cljs compiles and renders the skill's examples (counter, keyed and
   non-keyed lists, `s/repeat`, `s/case`, `s/if-some`, async memo under `s/loading`, action with
   `s/optimistic`, effect, `s/try`, store writes, context). It passes in Chromium.
@@ -664,7 +690,7 @@ Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings 
 proposal not to build the plugin encoding). Step 13 is done; its open question was answered by
 moving the JVM server functions into the library in step 16, which is done. Step 15 is done.
 Step 17 is done, with installing the skill through the skills CLI and Claude Code not yet
-tried. Step 14 is not started.
+tried. Step 14 is done.
 
 ### Deferred
 

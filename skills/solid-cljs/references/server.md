@@ -30,10 +30,10 @@ created with `s/safe-error`. `s/request-event` returns the current request event
 `s/parse-cookie-header` and `s/serialize-cookie` handle cookies. `s/client-only` loads a
 component in the browser only, and `s/no-hydration` marks a region that is not hydrated.
 
-Known bug at the time of writing: on the server, an async memo whose promise resolves to
-ClojureScript data (a vector, map or keyword) makes the render come out empty, with a
-`SerovalUnsupportedTypeError` in the log. Resolve such memos to strings or JavaScript data in
-server-rendered components.
+Async memos may resolve to ClojureScript data (collections, keywords, symbols, UUIDs, with
+`js/Date` and JavaScript data inside): the render functions serialize it and `s/hydrate`
+rebuilds it. Records and sorted maps arrive as maps, other sequences as lists, without
+metadata.
 
 ## Hydration
 

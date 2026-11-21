@@ -1005,6 +1005,12 @@ The client hydrates the same app into the same container:
 (s/hydrate ($ app) (js/document.getElementById "root"))
 ```
 
+The values of async reads travel to the browser in the page, so that the client does not read
+them again. They may hold ClojureScript data: collections, keywords, symbols and UUIDs, with
+strings, numbers, `js/Date` and JavaScript data inside. `s/hydrate` builds the same data in
+the browser, except that records and sorted maps arrive as maps, other sequences as lists, and
+metadata is left out.
+
 Hydratable client code also renders normally with `s/render`, so a build can compile it for
 both. Streamed HTML hydrates once its content has arrived and been revealed, and `s/reveal`
 coordinates the reveal of streamed `s/loading` boundaries on the server as in the browser. Without `:solid/hydratable`, `s/render` appends to a container that is not empty, so clear

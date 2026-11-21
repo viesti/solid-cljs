@@ -854,6 +854,105 @@
     (doseq [[k v] m :when (some? v)] (aset o k v))
     o))
 
+;; ClojureScript data in hydration data. Seroval cannot serialize ClojureScript collections, so
+;; a plugin writes each one as a call of a global function, `self._$CLJS(type, contents)`, with
+;; the contents (map entries, items, a keyword's name) serialized by seroval itself. The
+;; serialized values run as inline scripts that may run before the ClojureScript bundle has
+;; loaded: until `hydrate` installs the constructor, `self._$CLJS` returns placeholder objects,
+;; which `hydrate` then turns into the data they stand for, in place, before anything reads them.
+
+(def ^:private cljs-data-runtime
+  "The JavaScript of `self._$CLJS` until `hydrate` replaces it: queues a placeholder."
+  (str "(self._$CLJS||(self._$CLJS=function(t,a){var o={t:t,a:a};"
+       "(self._$CLJSQ||(self._$CLJSQ=[])).push(o);return o}))"))
+
+(defn- cljs-data?
+  "Returns true for the values that the plugin serializes: ClojureScript collections, keywords,
+  symbols and UUIDs."
+  [v]
+  (or (coll? v) (keyword? v) (symbol? v) (uuid? v)))
+
+(defn- cljs-data-parts
+  "Returns the type letter of `v` and its contents as a string or a JavaScript array. Records
+  and sorted maps become maps, other sequential collections lists."
+  [v]
+  (cond
+    (keyword? v) #js ["k" (subs (str v) 1)]
+    (symbol? v) #js ["y" (str v)]
+    (uuid? v) #js ["u" (str v)]
+    (map? v) #js ["m" (let [a #js []]
+                        (doseq [[k x] v] (.push a k x))
+                        a)]
+    (vector? v) #js ["v" (to-array v)]
+    (set? v) #js ["s" (to-array v)]
+    :else #js ["l" (to-array v)]))
+
+(defn- cljs-data-info [^js ctx v]
+  (let [[t a] (cljs-data-parts v)]
+    #js {:t t :a (.parse ctx a)}))
+
+(defn- cljs-data-plugin
+  "Returns a serialization plugin for ClojureScript data, for one render. Its first value
+  carries the definition of `self._$CLJS`, and later ones call it by name, since the scripts of
+  a render run in the order they were written."
+  []
+  (let [defined? (volatile! false)]
+    #js {:tag "solid-cljs/data"
+         :test cljs-data?
+         :skipPlainObjects true
+         :parse #js {:sync (fn [v ctx] (cljs-data-info ctx v))
+                     :stream (fn [v ctx] (cljs-data-info ctx v))
+                     :async (fn [v ^js ctx]
+                              (let [[t a] (cljs-data-parts v)]
+                                (.then (.parse ctx a) (fn [n] #js {:t t :a n}))))}
+         :serialize (fn [^js node ^js ctx]
+                      (str (if @defined?
+                             "_$CLJS"
+                             (do (vreset! defined? true) cljs-data-runtime))
+                           "(\"" (.-t node) "\"," (.serialize ctx (.-a node)) ")"))}))
+
+(defn- with-cljs-data-plugin
+  "Returns the array of serialization plugins for a render: `plugins` and one for ClojureScript
+  data."
+  [plugins]
+  (into-array (cons (cljs-data-plugin) plugins)))
+
+(defn- cljs-data
+  "Returns the ClojureScript value of type `t` with contents `a`, as the plugin wrote them."
+  [t a]
+  (case t
+    "k" (keyword a)
+    "y" (symbol a)
+    "u" (uuid a)
+    "m" (loop [i 0 m (transient {})]
+          (if (< i (alength a))
+            (recur (+ i 2) (assoc! m (aget a i) (aget a (inc i))))
+            (persistent! m)))
+    "v" (vec (aclone a))
+    "s" (set a)
+    (apply list a)))
+
+(defn- become!
+  "Turns the placeholder object `o` into `v`, a ClojureScript object, in place, so that every
+  reference to the placeholder in the hydration data sees `v`."
+  [o v]
+  (js-delete o "t")
+  (js-delete o "a")
+  (js/Object.setPrototypeOf o (js/Object.getPrototypeOf v))
+  (js/Object.assign o v))
+
+(defn- install-cljs-data!
+  "Turns the placeholders that inline scripts created into ClojureScript data, and makes
+  `self._$CLJS` build the data directly for the scripts that run later. The queue holds
+  contents before the collections that hold them, so they are turned first."
+  []
+  (let [q (unchecked-get js/self "_$CLJSQ")]
+    (unchecked-set js/self "_$CLJS" cljs-data)
+    (unchecked-set js/self "_$CLJSQ" nil)
+    (when q
+      (doseq [o q]
+        (become! o (cljs-data (unchecked-get o "t") (unchecked-get o "a")))))))
+
 (defn hydrate
   "Hydrates the HTML that the server rendered into the DOM `node` from `root`, an element
   created with `$` or a component, and returns a function that disposes it. The client and
@@ -861,6 +960,7 @@
   include `hydration-script`."
   ([root node] (hydrate root node nil))
   ([root node {:keys [render-id]}]
+   (install-cljs-data!)
    (sw/hydrate (root-thunk root) node (render-options {"renderId" render-id}))))
 
 (defn hydration-script
@@ -876,12 +976,14 @@
 
   Options are `:nonce`, `:render-id`, `:no-scripts`, `:on-head`, a function that receives
   the HTML of the head tags (see `use-head`) when the rendered HTML has no `</head>`, and
-  `:plugins`, serialization plugins such as `solid.server-components/plugin`."
+  `:plugins`, serialization plugins such as `solid.server-components/plugin`. ClojureScript
+  data in async values (collections, keywords, symbols and UUIDs) is serialized for `hydrate`,
+  with records and sorted maps as maps and other sequences as lists, without metadata."
   ([root] (render-to-string root nil))
   ([root {:keys [nonce render-id no-scripts on-head plugins]}]
    (sw/renderToString (root-thunk root) (render-options {"nonce" nonce "renderId" render-id
                                                          "noScripts" no-scripts "onHead" on-head
-                                                         "plugins" (some-> plugins into-array)}))))
+                                                         "plugins" (with-cljs-data-plugin plugins)}))))
 
 (defn render-to-string-async
   "Returns a promise of the HTML of `root` once every async read has settled."
@@ -890,7 +992,7 @@
    (js/Promise.resolve
     (sw/renderToStream (root-thunk root) (render-options {"nonce" nonce "renderId" render-id
                                                           "noScripts" no-scripts "onHead" on-head
-                                                          "plugins" (some-> plugins into-array)})))))
+                                                          "plugins" (with-cljs-data-plugin plugins)})))))
 
 (defn render-to-stream
   ([root] (render-to-stream root nil))
@@ -899,7 +1001,7 @@
                                                          "renderId" render-id
                                                          "noScripts" no-scripts
                                                          "onHead" on-head
-                                                         "plugins" (some-> plugins into-array)
+                                                         "plugins" (with-cljs-data-plugin plugins)
                                                          "onCompleteShell" on-complete-shell
                                                          "onCompleteAll" on-complete-all}))))
 

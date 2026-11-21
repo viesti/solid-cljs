@@ -29,7 +29,8 @@ app needs.
 
 - Server rendering with `s/render-to-string`, `s/render-to-string-async` and
   `s/render-to-stream`, and hydration with `s/hydrate`, `s/hydration-script` and the compiler
-  options `:solid/render` and `:solid/hydratable`.
+  options `:solid/render` and `:solid/hydratable`. Async values may hold ClojureScript data,
+  which hydration rebuilds in the browser.
 - Async: `s/loading` options, `s/pending?`, `s/latest`, `s/refresh`, `s/affects`, `s/resolve`.
 - Actions and optimistic updates: `s/action` with `s/yield` (in let bindings, branches and
   call arguments), `s/optimistic`, `s/optimistic-store`.

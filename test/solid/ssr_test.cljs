@@ -231,3 +231,15 @@
     (solid.server/report-request-failure (js/Error. "upstream down") event)
     (s/configure-server-errors {:on-error nil})
     (is (= ["upstream down"] @reported) "a request failure reaches the error hook")))
+
+(defui clojure-data-view []
+  (let [todos (s/memo #(js/Promise.resolve [{:id 1 :title "a" :tags #{:x}} {:id 2 :title "b"}]))]
+    (s/loading ($ :p "Loading")
+               ($ :ul (s/for [[t] (todos)] ($ :li (:title t) (str (:tags t))))))))
+
+(deftest async-clojure-data
+  (async done
+         (-> (s/render-to-string-async clojure-data-view)
+             (.then (fn [out]
+                      (is (re-find #"<li>a#\{:x\}</li><li>b</li>" out))
+                      (done))))))

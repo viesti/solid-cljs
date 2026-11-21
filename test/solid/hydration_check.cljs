@@ -71,4 +71,16 @@
     (s/flush)
     (.. (expect (.-textContent (q container "#toggle p"))) (toBe "open"))
     (.. (expect (.-textContent (q container "article"))) (toBe "Cardbody"))
-    (.. (expect (.-textContent (q container "#async"))) (toBe "Moi, world"))))
+    (.. (expect (.-textContent (q container "#async"))) (toBe "Moi, world"))
+    (.. (expect (.-textContent (q container "#data ul"))) (toBe "firstsecond"))
+    ;; Values that stream in after hydrate are built directly
+    (let [f (unchecked-get js/self "_$CLJS")]
+      (.. (expect (= [1 :a/b] (f "v" #js [1 (f "k" "a/b")]))) (toBe true)))
+    (.click (q container "#data button"))
+    (s/flush)
+    (.. (expect (.-textContent (q container "#data pre")))
+        (toEqual (pr-str [true [{:id 1 :title "first" :tags #{:a} :at (js/Date. 0)
+                              :id2 #uuid "00000000-0000-0000-0000-000000000001"
+                              :kind 'task :ns/k :x/y :path '(1 2) :by-pair {[1 2] "pair"}}
+                             {:id 2 :title "second" :tags #{}}]
+                          "pair" true])))))
