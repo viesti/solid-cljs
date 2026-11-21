@@ -1,7 +1,25 @@
 (ns demo.app
-  "The shared todo list. It renders in the browser and talks to the JVM through demo.api."
+  "The shared todo list. It renders in the browser and talks to the JVM through the reitit API
+  (demo.api), or with ?via=server-functions in the address through Solid's server function
+  protocol (demo.todos)."
   (:require [demo.api :as api]
+            [demo.todos :as todos]
             [solid.core :as s :refer [$ defui]]))
+
+(def via-server-functions?
+  (= "server-functions" (.get (js/URLSearchParams. js/location.search) "via")))
+
+(def ^:private calls
+  "The operations, each returning a promise, and `:feed`, which returns an async iterable of
+  `{:todos [...] :viewers n}`."
+  (if via-server-functions?
+    {:add todos/add-todo :toggle todos/toggle-todo :rename todos/rename-todo
+     :remove todos/remove-todo :sign-in todos/sign-in :feed todos/todo-feed}
+    {:add api/add-todo :toggle api/toggle-todo :rename api/rename-todo
+     :remove api/remove-todo :sign-in api/sign-in :feed #(s/from api/subscribe)}))
+
+(defn- call [op & args]
+  (apply (get calls op) args))
 
 (defn time-text
   "Formats the time of day of the `js/Date` `date` as 14:02, or with `seconds` as 14:02:05."
@@ -19,10 +37,10 @@
         draft (s/signal "")
         save (fn [e]
                (.preventDefault e)
-               (when (seq @draft) (api/rename-todo (:id @todo) @draft))
+               (when (seq @draft) (call :rename (:id @todo) @draft))
                (reset! editing false))]
     ($ :li
-       ($ :input {:type :checkbox :checked (:done @todo) :on-change #(api/toggle-todo (:id @todo))})
+       ($ :input {:type :checkbox :checked (:done @todo) :on-change #(call :toggle (:id @todo))})
        ($ :span {:class {:done (:done @todo)}} (:title @todo))
        ($ :small {:class :muted}
           (:author @todo)
@@ -34,12 +52,12 @@
             ($ :button "Save"))
          ($ :span {:class :inline}
             ($ :button {:on-click #(do (reset! draft (:title @todo)) (reset! editing true))} "Edit")
-            ($ :button {:on-click #(api/remove-todo (:id @todo))} "x"))))))
+            ($ :button {:on-click #(call :remove (:id @todo))} "x"))))))
 
 (defui shared-list
-  "Every todo and the viewer count, as the server's event stream sends them."
+  "Every todo and the viewer count, as the server streams them."
   []
-  (let [state (s/memo #(s/from api/subscribe))
+  (let [state (s/memo #(call :feed))
         todos #(:todos (state))]
     ($ :div
        ($ :p {:class :muted}
@@ -55,7 +73,7 @@
         submit (fn [e]
                  (.preventDefault e)
                  (when (seq @draft)
-                   (.then (api/sign-in @draft) on-sign-in)))]
+                   (.then (call :sign-in @draft) on-sign-in)))]
     ($ :form {:on-submit submit}
        ($ :input {:type :text :placeholder "Your name" :value @draft
                   :on-input #(reset! draft (.. % -target -value))})
@@ -71,7 +89,7 @@
         saved (s/signal nil)
         add (s/action [t]
                       (swap! adding conj t)
-                      (s/yield [todo (api/add-todo t)])
+                      (s/yield [todo (call :add t)])
                       (reset! saved todo))
         submit (fn [e]
                  (.preventDefault e)
@@ -80,6 +98,11 @@
                    (reset! title "")))]
     ($ :main
        ($ :h1 "solid-cljs with a JVM backend")
+       ($ :p {:class :muted} "Calls go through "
+          (if via-server-functions?
+            ($ :span ($ :a {:href "/"} "the reitit API") " or " ($ :strong "Solid server functions"))
+            ($ :span ($ :strong "the reitit API") " or " ($ :a {:href "/?via=server-functions"} "Solid server functions")))
+          ".")
        ($ :section
           ($ :h2 "Shared todos")
           (s/if @user

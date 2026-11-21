@@ -416,7 +416,7 @@ comment.
    to an empty string, with a `SerovalUnsupportedTypeError` in the log. Strings and JS
    objects work. Step 14 tracks it.
 
-### 13. A JVM backend example — in progress (13.1 done)
+### 13. A JVM backend example — done (13.2 kept in the example; see the open question)
 
 A fourth example: a solid-cljs frontend whose backend runs on the JVM (Clojure), for teams
 whose servers are Clojure rather than Node.js. It keeps the shared todo list from step 9
@@ -486,6 +486,37 @@ namespace reload and `stop!`. Built against the pinned `8d259d6`. Findings:
 - The example has the shared list only, without the counter, the local todo list and the
   greeting of the other examples, since those show nothing about the backend.
 
+Sub-step 2 is done, in the example: demo/server_functions.clj answers calls, `{:method :get}`,
+errors and `{:live true}`, and demo/todos.cljc defines each operation once, compiled by
+solid-cljs's `defserverfn` in the browser and by the example's own `defserverfn` macro on the
+JVM, which registers the same `"<ns>/<name>"` id. The page uses them with
+`?via=server-functions`. Test: `yarn test` in examples/jvm (test/demo/server_functions_test.clj
+starts the server and runs test/protocol.mjs, Solid's own client under Node.js). The
+two-window check passed for both transports, against the uberjar and in development. Findings:
+
+- Seroval escapes the text of a string node (`"`, `\`, `<` as `\x3C`, U+2028, U+2029 and
+  control characters) and unescapes it on reading, so a live value's EDN must be escaped the
+  same way before it is JSON-encoded, or quotes inside strings are lost.
+- The length prefix of a format 0 body (`;0x<length>;`) counts UTF-8 bytes.
+- An error message outside Latin-1 goes in the header as `=?1?` and the URI-encoded text.
+- Jetty 12 refuses `%2F` in a path ("Ambiguous URI path separator"), and Solid's client puts
+  the id there; the server allows that one violation on its connector.
+- Solid's client ignores the `base` argument of `createServerReference` for the request URL
+  in Node.js; the test resolves the client's paths against the server in a `fetch` wrapper.
+- The JVM must check `Origin` against `Host` itself. Vite's proxy needs `changeOrigin: false`
+  so that the JVM sees the page's host.
+- The live stream sends no `id:` lines, so a reconnect gets the current value again.
+
+Open question for the user: keep the JVM side in the example, or move it to the library. A
+library version would need solid-cljs's `defserverfn` to expand on the JVM (with no `:ns` in
+`&env`) into a definition and a registration, and a Ring handler namespace in src/ with no
+dependencies beyond Clojure (the example uses jsonista for JSON and Ring's codec). Against it:
+Solid calls the wire format non-contractual, so the library would follow Solid's releases more
+closely than it does now.
+
+Sub-step 3 is done: examples/jvm/README.md, and the example lists in README.md and
+examples/README.md.
+
 1. The example with reitit: http-kit or Jetty, reitit routes for the todo API (EDN or transit
    bodies with muuntaja), next.jdbc with SQLite, the sign-in cookie, a shadow-cljs browser
    build, and live updates for other viewers through server-sent events read with `s/from`.
@@ -509,8 +540,8 @@ empty page (see step 12.5). Reproduce it in test/solid/ssr_test.cljs first, then
 ### Status
 
 Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
-proposal not to build the plugin encoding). Step 13 is in progress, with 13.1 done. Step 14 is
-not started.
+proposal not to build the plugin encoding). Step 13 is done, with an open question on
+moving the JVM server functions into the library. Step 14 is not started.
 
 ### Deferred
 

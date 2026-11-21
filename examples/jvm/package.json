@@ -5,7 +5,8 @@
     "dev": "shadow-cljs watch app & clojure -M:server -m demo.server & vite",
     "dev:local": "shadow-cljs -A:local watch app & clojure -M:server -m demo.server & vite",
     "build": "shadow-cljs release app && vite build && clojure -T:build uber",
-    "start": "java -jar target/todos.jar"
+    "start": "java -jar target/todos.jar",
+    "test": "clojure -M:server:test"
   },
   "dependencies": {
     "@solidjs/h": "^2.0.2",

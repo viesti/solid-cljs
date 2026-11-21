@@ -5,13 +5,19 @@
             [next.jdbc.result-set :as rs])
   (:import (java.util Date)))
 
-(defonce ^:private ds
-  (jdbc/get-datasource {:dbtype "sqlite" :dbname (or (System/getenv "TODOS_DB") "todos.db")}))
+(defonce ^:private datasource
+  (delay (jdbc/get-datasource {:dbtype "sqlite"
+                               ;; The property lets a test choose the file
+                               :dbname (or (System/getProperty "todos.db")
+                                           (System/getenv "TODOS_DB")
+                                           "todos.db")})))
+
+(defn- ds [] @datasource)
 
 (defn migrate!
   "Creates the table, the same one the other examples use."
   []
-  (jdbc/execute! ds ["create table if not exists todos (
+  (jdbc/execute! (ds) ["create table if not exists todos (
                         id integer primary key,
                         title text not null,
                         done integer not null default 0,
@@ -33,7 +39,7 @@
 (defn todos
   "Returns every todo, oldest first."
   []
-  (mapv todo (jdbc/execute! ds ["select * from todos order by id"] opts)))
+  (mapv todo (jdbc/execute! (ds) ["select * from todos order by id"] opts)))
 
 ;; Called with no arguments after every write
 (defonce ^:private listeners (atom #{}))
@@ -56,14 +62,14 @@
 (defn add!
   "Adds a todo by `author` and returns it."
   [title author]
-  (let [row (jdbc/execute-one! ds ["insert into todos (title, author, created_at) values (?, ?, ?) returning *"
+  (let [row (jdbc/execute-one! (ds) ["insert into todos (title, author, created_at) values (?, ?, ?) returning *"
                                    (clean title) author (System/currentTimeMillis)]
                                opts)]
     (changed!)
     (todo row)))
 
 (defn- write! [& sql-params]
-  (let [{::jdbc/keys [update-count]} (jdbc/execute-one! ds (vec sql-params))]
+  (let [{::jdbc/keys [update-count]} (jdbc/execute-one! (ds) (vec sql-params))]
     (when (pos? update-count)
       (changed!)
       true)))

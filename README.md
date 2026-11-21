@@ -167,7 +167,9 @@ server.
 A fourth example keeps the shared todo list but moves its server to the JVM:
 
 - [examples/jvm](examples/jvm) renders in the browser only and talks to a Clojure server, a
-  reitit API with SQLite, which streams changes to every open page as server-sent events.
+  reitit API with SQLite, which streams changes to every open page as server-sent events. It
+  can also make the same calls with `defserverfn`, answered by the JVM in the wire protocol of
+  Solid's server function runtime.
 
 ## API
 
