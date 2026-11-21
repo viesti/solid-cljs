@@ -1137,6 +1137,44 @@ The compiler also warns about reactivity mistakes in `defui` bodies: reactive re
 tracked scope, writes to signals while the body runs, and destructured props whose names the
 body binds again.
 
+## Coding agents
+
+solid-cljs ships an [Agent Skill](https://agentskills.io) in
+[`skills/solid-cljs`](skills/solid-cljs): instructions that teach coding agents (Claude Code,
+OpenAI Codex, GitHub Copilot, Cursor, Gemini CLI and others that read skills) how to write
+solid-cljs code, with the mistakes that matter most in Solid 2 and references for components,
+reactivity, server rendering and server functions. No agent picks up a skill from a
+dependency by itself, so install it into the project once.
+
+With the [skills CLI](https://github.com/vercel-labs/skills), which installs for each agent it
+finds and records the commit in a lockfile, from the same commit the project's deps.edn pins:
+
+```bash
+npx skills add viesti/solid-cljs@<the :git/sha from deps.edn>
+```
+
+In Claude Code, add the repository as a plugin marketplace at the `solid-2` branch (or at a
+commit, from Claude Code 2.1.324), then install the plugin:
+
+```text
+/plugin marketplace add viesti/solid-cljs#solid-2
+/plugin install solid-cljs@solid-cljs
+```
+
+Or copy `skills/solid-cljs` into the project's `.claude/skills/` (Claude Code) or
+`.agents/skills/` (most other agents). An agent loads a skill when it judges the task to match
+the skill's description, so a line in the project's AGENTS.md or CLAUDE.md makes that more
+reliable:
+
+```markdown
+This project uses solid-cljs (ClojureScript bindings to Solid 2). Use the solid-cljs skill when
+writing or changing UI code.
+```
+
+Install the skill from the commit the project depends on, and again when upgrading: a skill
+from another commit can describe a different API. The skill's examples are compiled and run by
+the test suite (`test/vitest/skill_examples.cljs`).
+
 ## Playground
 
 _source in [`dev/app/core.cljs`](src/app/core.cljs)_

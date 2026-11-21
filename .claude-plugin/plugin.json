@@ -1,0 +1,6 @@
+{
+  "name": "solid-cljs",
+  "description": "Teaches coding agents to write ClojureScript UIs with solid-cljs and Solid 2: $, defui, signals, memos, control flow, async data, stores, server rendering and server functions",
+  "license": "EPL-2.0",
+  "repository": "https://github.com/viesti/solid-cljs"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "solid-cljs",
+  "description": "Agent skill for solid-cljs, the ClojureScript bindings to SolidJS 2",
+  "owner": {
+    "name": "solid-cljs"
+  },
+  "plugins": [
+    {
+      "name": "solid-cljs",
+      "source": "./",
+      "description": "Teaches coding agents to write ClojureScript UIs with solid-cljs and Solid 2"
+    }
+  ]
+}

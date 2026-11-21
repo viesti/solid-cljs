@@ -419,7 +419,7 @@ comment.
    to an empty string, with a `SerovalUnsupportedTypeError` in the log. Strings and JS
    objects work. Step 14 tracks it.
 
-### 13. A JVM backend example — done (13.2 kept in the example; see the open question)
+### 13. A JVM backend example — done (13.2 moved to the library in step 16)
 
 A fourth example: a solid-cljs frontend whose backend runs on the JVM (Clojure), for teams
 whose servers are Clojure rather than Node.js. It keeps the shared todo list from step 9
@@ -598,7 +598,7 @@ Pushed as `b0120aa`. The README and the four examples pin it, and all four build
 `yarn build` against it and pass `yarn test:browser`; the JVM example's `yarn test` passes too.
 Development mode was not re-checked after the re-pin.
 
-### 17. Instructions for agents that use the library — investigated, decision pending
+### 17. Instructions for agents that use the library — done
 
 The user asked (2026-11-21) whether solid-cljs should ship instructions for AI coding agents
 working in a user's project, using a widely supported mechanism, and to investigate first.
@@ -629,14 +629,38 @@ functions and the JVM caveat); make the repository installable with `npx skills 
 Claude Code plugin marketplace; and give the README an "Using solid-cljs with coding agents"
 section with the install commands, the AGENTS.md pointer line, and the advice to install the
 skill from the same commit as the pinned dependency, since a skill from another commit can
-describe a different API. Waiting for the user's decision before writing it.
+describe a different API.
+
+The user approved the proposal (2026-11-21). Done:
+
+- skills/solid-cljs/SKILL.md (95 lines: what solid-cljs is, a component, 14 rules, an index)
+  and references/setup.md, components.md, reactivity.md and server.md, written from the README
+  and checked against the macros (`s/for`'s index is derefable, `s/repeat` takes `:fallback`,
+  `s/dynamic` renders without props, `s/children` returns an accessor). The frontmatter follows
+  the agentskills.io spec (name matches the folder, description 465 of 1024 characters,
+  license EPL-2.0). The server reference states the JVM caveat and the step 14 bug.
+- test/vitest/skill_examples.cljs compiles and renders the skill's examples (counter, keyed and
+  non-keyed lists, `s/repeat`, `s/case`, `s/if-some`, async memo under `s/loading`, action with
+  `s/optimistic`, effect, `s/try`, store writes, context). It passes in Chromium.
+- .claude-plugin/marketplace.json and plugin.json make the repository a Claude Code plugin
+  marketplace whose one plugin is the repository root (`"source": "./"`), so `skills/` is the
+  plugin's skills folder.
+- README: "Coding agents", with `npx skills add viesti/solid-cljs@<sha>`, the Claude Code
+  commands (`/plugin marketplace add viesti/solid-cljs#solid-2`, since the default branch is
+  `main`), copying the folder, an AGENTS.md line, and installing from the pinned commit.
+
+Not verified: installing through the skills CLI or Claude Code's plugin commands. The `claude`
+CLI is not installed here, and running `npx skills` was refused by this session's permission
+check, so neither `claude plugin validate` nor an install has been run. The JSON files parse,
+and the formats follow the vendors' documentation as of November 2026.
 
 ### Status
 
 Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
-proposal not to build the plugin encoding). Step 13 is done, with an open question on
-moving the JVM server functions into the library. Step 14 is not started. Step 15 is done. Step 16 is done. Step 17 is investigated, with a
-proposal waiting for the user's decision.
+proposal not to build the plugin encoding). Step 13 is done; its open question was answered by
+moving the JVM server functions into the library in step 16, which is done. Step 15 is done.
+Step 17 is done, with installing the skill through the skills CLI and Claude Code not yet
+tried. Step 14 is not started.
 
 ### Deferred
 
