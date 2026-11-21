@@ -551,7 +551,7 @@ pass against their production builds (pinned `8d259d6`), and the JVM example als
 against `yarn dev`. The spec waits for the viewer count to settle at one before it opens the
 second window, since the JVM takes about ten seconds to notice a closed stream.
 
-### 16. Server functions on the JVM in the library — done (re-pin pending)
+### 16. Server functions on the JVM in the library — done
 
 The user asked (2026-11-21) to explore moving the JVM side of step 13.2 from examples/jvm into
 the library, and to say plainly in the README that Solid may change the wire protocol under it.
@@ -594,7 +594,9 @@ Done:
   not contractual, matches `@solidjs/web` 2.0.3, and wants Solid pinned and upgraded together
   with solid-cljs. The example's README repeats it. CHANGELOG entry.
 
-Pending: push, re-pin the four examples and check them against the pushed commit.
+Pushed as `b0120aa`. The README and the four examples pin it, and all four build with
+`yarn build` against it and pass `yarn test:browser`; the JVM example's `yarn test` passes too.
+Development mode was not re-checked after the re-pin.
 
 ### 17. Instructions for agents that use the library — investigated, decision pending
 
@@ -633,7 +635,7 @@ describe a different API. Waiting for the user's decision before writing it.
 
 Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
 proposal not to build the plugin encoding). Step 13 is done, with an open question on
-moving the JVM server functions into the library. Step 14 is not started. Step 15 is done. Step 16 is done, with the re-pin pending. Step 17 is investigated, with a
+moving the JVM server functions into the library. Step 14 is not started. Step 15 is done. Step 16 is done. Step 17 is investigated, with a
 proposal waiting for the user's decision.
 
 ### Deferred
