@@ -1,11 +1,12 @@
 {:paths ["src"]
- :deps {org.clojure/clojure {:mvn/version "1.12.7"}}
+ :deps {org.clojure/clojure {:mvn/version "1.12.7"}
+        ;; The browser build's macros and runtime, and on the JVM the server functions
+        com.github.roman01la/solid-cljs {:git/url "https://github.com/viesti/solid-cljs"
+                                         :git/sha "8d259d6a56aed49fe96b5c9c2dfa7017ef53459d"}}
  :aliases
  {;; The JVM server
   :server {:extra-deps {ring/ring-jetty-adapter {:mvn/version "1.15.6"}
                         metosin/reitit {:mvn/version "0.11.0"}
-                        ;; JSON in demo.server-functions; reitit uses the same version
-                        metosin/jsonista {:mvn/version "1.0.1"}
                         com.github.seancorfield/next.jdbc {:mvn/version "1.4.72"}
                         org.xerial/sqlite-jdbc {:mvn/version "3.54.1.0"}
                         org.slf4j/slf4j-simple {:mvn/version "2.0.20"}}
@@ -18,9 +19,7 @@
   ;; A REPL with the server: (start!) and (stop!) in dev/user.clj
   :dev {:extra-paths ["dev"]}
   ;; The browser build, which shadow-cljs.edn names
-  :cljs {:extra-deps {com.github.roman01la/solid-cljs {:git/url "https://github.com/viesti/solid-cljs"
-                                                       :git/sha "8d259d6a56aed49fe96b5c9c2dfa7017ef53459d"}
-                      thheller/shadow-cljs {:mvn/version "3.5.14"}}}
+  :cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "3.5.14"}}}
   ;; Uses the solid-cljs checkout this folder lives in
   :local {:override-deps {com.github.roman01la/solid-cljs {:local/root "../.."}}}
   ;; clojure -T:build uber

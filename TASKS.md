@@ -551,11 +551,90 @@ pass against their production builds (pinned `8d259d6`), and the JVM example als
 against `yarn dev`. The spec waits for the viewer count to settle at one before it opens the
 second window, since the JVM takes about ten seconds to notice a closed stream.
 
+### 16. Server functions on the JVM in the library — done (re-pin pending)
+
+The user asked (2026-11-21) to explore moving the JVM side of step 13.2 from examples/jvm into
+the library, and to say plainly in the README that Solid may change the wire protocol under it.
+
+Plan:
+
+1. `defserverfn` expands on the JVM (no `:ns` in `&env`) into `defn` and a registration, so a
+   .cljc file defines a server function once for both sides. The macro namespace must load
+   without ClojureScript on the classpath, so it resolves `solid.template` lazily.
+2. `solid.server-functions.ring`: the registry, `*request*`, `respond`, encodings (EDN and
+   `{:encode :decode}`), and a Ring handler for the `/_server` paths that returns nil for other
+   requests. No dependencies beyond Clojure and ring-core, which a Ring app has anyway.
+3. A JVM test in the library that runs Solid's own client (Node.js) against the handler.
+4. The JVM example uses the library instead of its own copy.
+5. README: a section on the JVM, with the warning that Solid calls the mapping from a call to a
+   request non-contractual, so a Solid release may break it until solid-cljs follows.
+
+Done:
+
+- src/solid/server_functions.clj loads without ClojureScript: it resolves
+  `solid.template/render-target` only when it expands for ClojureScript. On the JVM (no `:ns` in
+  `&env`, id from `*ns*`) `defserverfn` expands to `defn` and a call to
+  `solid.server-functions.ring/-register!` through `requiring-resolve`, so the macro namespace
+  does not need ring-core.
+- src/solid/server_functions/ring.clj: `handler` (options `:base`, `:allow?`,
+  `:heartbeat-seconds`, `:on-error`; returns nil outside its paths), `*request*`, `respond`,
+  `edn`, `set-default-encoding!`, `same-origin?`, `registered`. No JSON library: it writes
+  JSON itself and reads the `args` parameter with EDN, which reads JSON.stringify's array of
+  strings the same way. `{:encoding :js}` throws at registration. Live functions return
+  `(fn [send] stop)`.
+- Tests: `clojure -M:jvm-test` (test/jvm/solid/server_functions/ring_test.clj): Ring-map tests of
+  results, `respond`, custom encodings, fall-through, the 403/404/405/415 refusals and errors,
+  plus Solid's own client (test/jvm/protocol.mjs) against a Jetty server. `yarn test` and
+  `yarn vitest` pass with the macro change (55 and 122 tests).
+- examples/jvm uses the library and has no copy of its own. solid-cljs moved to the example's
+  top-level deps, since the server needs it too, and the example gained `build:local`,
+  `test:local` and `dev:local` scripts. `yarn test:local` and `yarn test:browser` after
+  `yarn build:local` pass.
+- README: "On a Clojure server" under "Server functions", with a warning that the protocol is
+  not contractual, matches `@solidjs/web` 2.0.3, and wants Solid pinned and upgraded together
+  with solid-cljs. The example's README repeats it. CHANGELOG entry.
+
+Pending: push, re-pin the four examples and check them against the pushed commit.
+
+### 17. Instructions for agents that use the library — investigated, decision pending
+
+The user asked (2026-11-21) whether solid-cljs should ship instructions for AI coding agents
+working in a user's project, using a widely supported mechanism, and to investigate first.
+Findings, from web research done in this session (sources as of November 2026; some per-agent
+details come from secondary sources and are marked preview or experimental by the vendors):
+
+- Agent Skills (a folder with SKILL.md, an open spec at agentskills.io) is the one format that
+  Claude Code, OpenAI Codex, GitHub Copilot, Cursor and Gemini CLI all read. Paths differ:
+  `.claude/skills` for Claude Code, `.agents/skills` for most others, and some read both.
+  A skill loads when the agent judges its description to match the task.
+- No agent picks up instructions from a dependency by itself, AGENTS.md or skills alike. The
+  user always takes a step: copy the folder, run `npx skills add <owner>/<repo>` (Vercel's
+  skills CLI, which installs for several agents and keeps a lockfile), or add a Claude Code
+  plugin marketplace from the repository (`/plugin marketplace add <owner>/<repo>`).
+- AGENTS.md is read by most agents but only for the repository being worked on. It suits a
+  one-line pointer in the user's own project ("this project uses solid-cljs; use the
+  solid-cljs skill"), which makes the skill load more reliably.
+- Package-shipped skills exist for npm (TanStack Intent, alpha) and Maven jars (SkillsJars),
+  each with an install command. Nothing like it exists for deps.edn or git dependencies, so
+  tools.deps users cannot get it automatically from the dependency itself.
+- llms.txt is rarely fetched by agents. A docs MCP server (Context7) works with any MCP agent
+  but depends on a third-party service.
+
+Proposal: add `skills/solid-cljs/SKILL.md` (short, with a description that names `$`, `defui`,
+`s/for`, `defserverfn`, Solid 2) and `skills/solid-cljs/references/*.md` for the details
+(macros, reactivity rules, differences from Solid 1 and from React-style wrappers, server
+functions and the JVM caveat); make the repository installable with `npx skills add` and as a
+Claude Code plugin marketplace; and give the README an "Using solid-cljs with coding agents"
+section with the install commands, the AGENTS.md pointer line, and the advice to install the
+skill from the same commit as the pinned dependency, since a skill from another commit can
+describe a different API. Waiting for the user's decision before writing it.
+
 ### Status
 
 Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
 proposal not to build the plugin encoding). Step 13 is done, with an open question on
-moving the JVM server functions into the library. Step 14 is not started. Step 15 is done.
+moving the JVM server functions into the library. Step 14 is not started. Step 15 is done. Step 16 is done, with the re-pin pending. Step 17 is investigated, with a
+proposal waiting for the user's decision.
 
 ### Deferred
 

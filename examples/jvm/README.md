@@ -52,9 +52,8 @@ builds target/todos.jar, which holds the server and the bundle. `yarn start` (or
 
 `yarn test` runs Solid's own server function client, under Node.js, against the JVM's
 answers (test/protocol.mjs, started by test/demo/server_functions_test.clj).
-
-`yarn dev:local` builds against the solid-cljs checkout this folder lives in instead of the
-pinned commit, through the `:local` alias in deps.edn.
+`yarn build:local`, `yarn test:local` and `yarn dev:local` use the solid-cljs checkout this
+folder lives in instead of the pinned commit, through the `:local` alias in deps.edn.
 
 ## Browser tests
 
@@ -89,11 +88,11 @@ BASE_URL=http://localhost:3000 yarn test:browser
 | A row's edit field keeps its draft while other viewers' changes arrive | `s/for` with `:key :id`, so a row follows its todo instead of being replaced | `shared-list` and `todo-row` in demo/app.cljs |
 | "Signed in as Ann", kept in a cookie, and each todo records who added it | A `Set-Cookie` from the API, read with `s/parse-cookie-header` in the browser and Ring's cookies middleware on the server | `/api/session` in demo/server.clj, demo/client.cljs |
 | "Saved “Milk” at 14:02:05" and "added 14:02 · done 14:20" | The API answers with `java.util.Date` values, which EDN prints as `#inst` and `cljs.reader` reads as `js/Date` | demo/db.clj, `time-text` in demo/app.cljs |
-| With `?via=server-functions`, the same operations as server functions answered by the JVM, and the list as a live server function | `defserverfn` in the browser, and `demo.server-functions/defserverfn` with the same names on the JVM | demo/todos.cljc, demo/server_functions.clj |
+| With `?via=server-functions`, the same operations as server functions answered by the JVM, and the list as a live server function | `defserverfn` on both sides, answered on the JVM by `solid.server-functions.ring/handler` | demo/todos.cljc, demo/server.clj |
 
 ## Server functions on the JVM
 
-demo/todos.cljc defines each operation once for both sides:
+demo/todos.cljc defines each operation once for both sides with solid-cljs's `defserverfn`:
 
 ```clojure
 (defserverfn add-todo [title]
@@ -103,32 +102,23 @@ demo/todos.cljc defines each operation once for both sides:
   live/subscribe)
 ```
 
-The browser build compiles it with solid-cljs's `defserverfn`, which with `:solid/render :dom`
-leaves the body out and keeps a reference that calls the server. The JVM compiles it with
-`demo.server-functions/defserverfn`, which defines the function and registers it under the
-same id, `"demo.todos/add-todo"`. A reader conditional picks the macro and requires the
-database on the JVM only.
+The browser build, with `:solid/render :dom`, leaves the bodies out and keeps references that
+call the server. On the JVM the same macro defines each function and registers it under the
+same id, `"demo.todos/add-todo"`, for `solid.server-functions.ring/handler`, which demo/server.clj
+mounts at `/_server` inside the reitit router, so that the cookies middleware applies. A reader
+conditional requires the database on the JVM only.
 
-demo.server-functions answers:
+On the JVM a live function returns a subscribe function, which takes a callback and returns a
+function that stops it; the browser reads the values with `(s/memo #(todo-feed))`.
+`solid.server-functions.ring/respond` adds Ring response keys, such as the sign-in `:cookies`,
+and `solid.server-functions.ring/*request*` is the Ring request of the call. The main README's
+section "On a Clojure server" lists what the handler supports.
 
-- calls, `POST /_server/data/<id>`, with the EDN argument vector as the body and the EDN result
-  as the answer, so a returned `java.util.Date` reaches the browser as a `js/Date`;
-- `{:method :get}` functions, `GET /_server/data/<id>?args=...`;
-- failures: an `ex-info` sends its message, which the browser's call rejects with, and other
-  exceptions send "Internal Server Error";
-- `{:live true}` functions, `GET /_server/live/<id>?args=...`, as server-sent events. The body
-  returns a subscribe function, which takes a callback and returns a function that stops it,
-  and the browser reads the values with `(s/memo #(todo-feed))`.
-
-`demo.server-functions/respond` adds Ring response keys, such as `:cookies`, to a result, as
-`s/respond` does in Node.js. `demo.server-functions/*request*` is the Ring request of the call.
-Calls whose `Origin` names another host are refused, as Solid's own handler does.
-
-Not covered: server components, form posts without JavaScript, single-flight data, encodings
-other than EDN, and resuming a live stream from `Last-Event-ID` (the JVM sends the current
-value again instead). Solid's client says that the mapping from a call to a request is not
-contractual, so a Solid release may change the wire: the example pins `@solidjs/web` through
-yarn.lock, and `yarn test` checks the JVM against Solid's client.
+> [!WARNING]
+> Solid documents the mapping from a call to a request as not contractual, and solid-cljs
+> follows `@solidjs/web` 2.0.3. A Solid release may change the wire and break the JVM side
+> until solid-cljs follows, so this example pins Solid through yarn.lock, and `yarn test`
+> checks the JVM against Solid's own client.
 
 ## The API
 
@@ -149,10 +139,11 @@ A blank title or name answers 400 with `{:error "..."}`.
 
 ## How it is set up
 
-- **deps.edn** has an alias for each side. `:server` holds the JVM's dependencies (Jetty
-  through ring-jetty-adapter, reitit, next.jdbc, sqlite-jdbc), and `:cljs` holds solid-cljs,
-  pinned to a commit on GitHub, and shadow-cljs. shadow-cljs.edn names `:cljs`, so the browser
-  build's classpath has none of the server's libraries.
+- **deps.edn** depends on solid-cljs, pinned to a commit on GitHub, on both sides, and has an
+  alias for each side's own libraries. `:server` holds the JVM's (Jetty through
+  ring-jetty-adapter, reitit, next.jdbc, sqlite-jdbc), and `:cljs` holds shadow-cljs.
+  shadow-cljs.edn names `:cljs`, so the browser build's classpath has none of the server's
+  libraries.
 - **shadow-cljs.edn** compiles the browser code to ES modules with `:solid/render :dom` and
   `:js-provider :import`, which leaves the npm imports to Vite, since shadow-cljs cannot bundle
   `@solidjs/web`. Development builds set `:solid/refresh`, so a hot reload re-renders only the

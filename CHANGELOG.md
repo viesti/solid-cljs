@@ -69,6 +69,10 @@ app needs.
   per-call options such as an abort signal. Solid's own `invoke` and `withMeta` work on it too.
 - A `defserverfn` may return `s/respond`, whose status and headers reach the browser while
   its value travels as EDN. `s/respond` and `s/reload` take `:headers` as a map.
+- `defserverfn` in Clojure on the JVM, answered by the Ring handler
+  `solid.server-functions.ring/handler` in the wire protocol of Solid's server function runtime
+  (calls, GET, failures, live functions, EDN and custom encodings). Solid calls that protocol
+  non-contractual, so a Solid release may break it until solid-cljs follows.
 - `mark-raw`, `until`, `repeat-map`, owner and hydration utilities, cookie helpers, and
   `[handler data]` event handlers.
 - Component names and source locations in Solid's diagnostics in development builds.

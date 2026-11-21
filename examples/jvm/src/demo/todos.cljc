@@ -1,19 +1,19 @@
 (ns demo.todos
-  "The todo operations as server functions. The browser build compiles them with solid-cljs's
-  `defserverfn`, which with `:solid/render :dom` keeps only a reference that calls the server,
-  and the JVM compiles them with `demo.server-functions/defserverfn`, which defines and
-  registers them. Both give each the id \"demo.todos/<name>\"."
+  "The todo operations as server functions, defined once for both sides with solid-cljs's
+  `defserverfn`. The browser build, with `:solid/render :dom`, keeps only references that call
+  the server. On the JVM each is a function, registered under the same id,
+  \"demo.todos/<name>\", for `solid.server-functions.ring/handler`."
   (:require #?@(:clj [[demo.db :as db]
                       [demo.live :as live]
-                      [demo.server-functions :as sf :refer [defserverfn]]]
-                :cljs [[solid.server-functions :refer [defserverfn]]])
-            [clojure.string :as str]))
+                      [solid.server-functions.ring :as sfr]])
+            [clojure.string :as str]
+            [solid.server-functions :refer [defserverfn]]))
 
 #?(:clj
    (defn- author
      "Returns the name in the cookie of the current call."
      []
-     (get-in sf/*request* [:cookies "name" :value] "someone")))
+     (get-in sfr/*request* [:cookies "name" :value] "someone")))
 
 ;; Returns the new todo, whose java.util.Date timestamps reach the browser as js/Date
 (defserverfn add-todo [title]
@@ -31,7 +31,7 @@
 (defserverfn sign-in [user-name]
   (when (str/blank? user-name)
     (throw (ex-info "A name is needed" {})))
-  (sf/respond user-name {:cookies {"name" {:value user-name :path "/" :max-age 31536000
+  (sfr/respond user-name {:cookies {"name" {:value user-name :path "/" :max-age 31536000
                                            :same-site :lax}}}))
 
 ;; A call that only reads, which the browser may send as a GET

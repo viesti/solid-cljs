@@ -853,6 +853,45 @@ Clojurific example hands its database functions to the shared code from the serv
 browser source map with embedded sources still contains the original code, so do not publish
 such source maps for these namespaces.
 
+#### On a Clojure server
+
+A Clojure server on the JVM can answer the browser's `defserverfn` calls too. Define the
+functions once in a .cljc file: the browser build compiles them to references, and Clojure
+compiles each to a function registered under the same id. Require the server's own namespaces
+inside a reader conditional:
+
+```clojure
+(ns app.todos
+  (:require #?@(:clj [[app.db :as db]
+                      [solid.server-functions.ring :as sfr]])
+            [solid.server-functions :refer [defserverfn]]))
+
+(defserverfn add-todo [title]
+  (db/add! title (get-in sfr/*request* [:cookies "name" :value])))
+
+(defserverfn todo-feed {:live true} []
+  ;; On the JVM a live function returns a subscribe function, (fn [send] stop)
+  (fn [send] (db/subscribe send)))
+```
+
+`(solid.server-functions.ring/handler)` returns a Ring handler that answers them under
+`/_server` and returns nil for other requests. It needs ring-core on the classpath. It supports
+calls, `{:method :get}`, failures (an `ex-info` sends its message), live functions as
+server-sent events, EDN and custom `{:encode :decode}` encodings, and `sfr/respond` for
+response keys such as `:cookies`. It does not support server components, form posts without
+JavaScript, `{:encoding :js}` or resuming a live stream. Calls whose `Origin` names another
+host are refused. The [JVM example](examples/jvm) runs it with Jetty, which must be told to
+accept `%2F` in paths, where Solid's client puts the function's id.
+
+> [!WARNING]
+> This speaks the wire protocol of Solid's server function runtime, which Solid documents as
+> not contractual ("the call-to-request mapping itself is not contractual"). It matches
+> `@solidjs/web` 2.0.3. A later Solid release may change the requests or the answers, and a
+> JVM server then breaks until solid-cljs follows. Pin the exact version of `@solidjs/web` in
+> the app (`yarn.lock` or `package-lock.json`), and upgrade Solid and solid-cljs together.
+> solid-cljs tests the JVM side against Solid's own client (`clojure -M:jvm-test`), so a
+> change shows up there first.
+
 ### Server components
 
 A server component is a server function whose result is a component. The browser receives the

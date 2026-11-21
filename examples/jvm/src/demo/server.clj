@@ -5,14 +5,14 @@
   (:require [clojure.string :as str]
             [demo.db :as db]
             [demo.live :as live]
-            [demo.server-functions :as sf]
             [demo.todos]
             [muuntaja.core :as m]
             [reitit.ring :as ring]
             [reitit.ring.middleware.muuntaja :as muuntaja]
             [ring.adapter.jetty :as jetty]
             [ring.middleware.cookies :refer [wrap-cookies]]
-            [ring.util.codec :as codec])
+            [ring.util.codec :as codec]
+            [solid.server-functions.ring :as sfr])
   (:import (java.util.concurrent Executors)
            (org.eclipse.jetty.http UriCompliance UriCompliance$Violation)
            (org.eclipse.jetty.server Connector HttpConnectionFactory Server)
@@ -63,8 +63,9 @@
                             :cookies {"name" {:value user-name :path "/" :max-age 31536000
                                               :same-site :lax}}}))}]
     ["/events" {:get events}]]
-   ;; The same operations as server functions, which the page uses with ?via=server-functions
-   (sf/routes)])
+   ;; The same operations as server functions, which the page uses with ?via=server-functions.
+   ;; Inside the router, so that the cookies middleware applies.
+   ["/_server/*path" {:handler (sfr/handler)}]])
 
 (defn- wrap-errors
   "Answers invalid input from demo.db with 400."

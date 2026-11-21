@@ -6,7 +6,8 @@
 (def ^:private class-dir "target/classes")
 
 (defn uber [_]
-  (let [basis (b/create-basis {:aliases [:server]})]
+  ;; LOCAL=1 builds against the solid-cljs checkout this folder lives in
+  (let [basis (b/create-basis {:aliases (cond-> [:server] (System/getenv "LOCAL") (conj :local))})]
     (b/delete {:path "target"})
     (b/copy-dir {:src-dirs ["dist"] :target-dir (str class-dir "/public")})
     (b/compile-clj {:basis basis :ns-compile '[demo.server] :class-dir class-dir})

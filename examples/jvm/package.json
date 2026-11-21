@@ -3,10 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "shadow-cljs watch app & clojure -M:server -m demo.server & vite",
-    "dev:local": "shadow-cljs -A:local watch app & clojure -M:server -m demo.server & vite",
+    "dev:local": "shadow-cljs -A:local watch app & clojure -M:server:local -m demo.server & vite",
     "build": "shadow-cljs release app && vite build && clojure -T:build uber",
+    "build:local": "shadow-cljs -A:local release app && vite build && LOCAL=1 clojure -T:build uber",
     "start": "java -jar target/todos.jar",
     "test": "clojure -M:server:test",
+    "test:local": "clojure -M:server:local:test",
     "test:browser": "playwright test"
   },
   "dependencies": {
