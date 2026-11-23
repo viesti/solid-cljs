@@ -7,6 +7,8 @@ Below the shared list are a counter, a todo list kept in the browser and an asyn
 `Loading`. Squint compiles `#jsx` literals to JSX, and Solid's own compiler compiles that JSX and
 the `"use server"` functions, so the app is set up as a JavaScript Solid app would be.
 
+https://github.com/user-attachments/assets/2eb8293c-bbc5-4018-87d2-2ef680487879
+
 ## Running it
 
 Needs Node.js 22.13 or later (for `node:sqlite`) and the
