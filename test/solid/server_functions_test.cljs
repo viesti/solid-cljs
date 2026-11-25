@@ -175,6 +175,59 @@
                (.catch (fn [e] (is false (str "rejected: " e))))
                (.finally done)))))
 
+(deftest live-reconnect-and-onstatus
+  (async done
+         (swap! price assoc :value 10)
+         (let [orig-fetch (.-fetch js/globalThis)
+               attempt (atom 0)
+               statuses (atom [])
+               drop-first! (atom nil)]
+           (set! (.-fetch js/globalThis)
+                 (fn [address ^js init]
+                   (let [n (swap! attempt inc)]
+                     (if (= 1 n)
+                       (-> (send address init)
+                           (.then (fn [^js resp]
+                                    (let [reader (.getReader (.-body resp))
+                                          body (js/ReadableStream.
+                                                #js {:start (fn [ctrl]
+                                                              (reset! drop-first!
+                                                                      (fn []
+                                                                        (.cancel reader)
+                                                                        (.error ctrl (js/Error. "connection dropped")))))
+                                                     :pull (fn [ctrl]
+                                                             (-> (.read reader)
+                                                                 (.then (fn [^js r]
+                                                                          (if (.-done r)
+                                                                            (.close ctrl)
+                                                                            (.enqueue ctrl (.-value r)))))
+                                                                 (.catch (fn [_]))))})]
+                                      (js/Response. body #js {:status (.-status resp) :headers (.-headers resp)})))))
+                       (send address init)))))
+           (let [feed (sf/-live-caller (client/live (client/createServerReference "solid.server-functions-test/price-feed")))
+                 ^js values (feed :reconn)
+                 _ (set! (.-onstatus values) (fn [state _] (swap! statuses conj state)))
+                 ^js it (.call (aget values js/Symbol.asyncIterator) values)]
+             (-> (.next it)
+                 (.then (fn [^js r]
+                          (is (= {:price 10 :symbol :reconn} (.-value r)) "first value before drop")
+                          (swap! price assoc :value 11)
+                          (@drop-first!)
+                          (.next it)))
+                 (.then (fn [^js r]
+                          (is (= {:price 11 :symbol :reconn} (.-value r)) "reconnected stream yields current value")
+                          (is (= 2 @attempt) "client reconnected after the dropped stream")
+                          (.return it)
+                          (wait 20)))
+                 (.then (fn []
+                          (is (= ["connected" "reconnecting" "connected" "closed"] @statuses)
+                              "onstatus reports connected, reconnecting, connected and closed")
+                          (is (empty? (:listeners @price)) "closing unsubscribes on the server")))
+                 (.catch (fn [e] (is false (str "rejected: " e))))
+                 (.finally (fn []
+                             (set! (.-fetch js/globalThis) orig-fetch)
+                             (done))))))))
+
 (defserverfn add-note [list-id form]
   (str "saved " (.get form "text") " to " list-id))
 

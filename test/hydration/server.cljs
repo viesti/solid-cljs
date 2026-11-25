@@ -37,6 +37,18 @@
              ($ :ul (s/for [[t] [(title) (str (title) "!")]] ($ :li t)))
              ($ editor {:id "h"})))))
 
+(defservercomponent reconnect-headline {:live true} []
+  (s/ui [{:keys [editor]}]
+        (let [title (s/memo #(s/from headline-source))]
+          ($ :section ($ :h1 (title))
+             ($ editor {:id "r"})))))
+
+(defservercomponent async-card []
+  (let [detail (js/Promise. (fn [resolve]
+                              (js/setTimeout #(resolve "streamed-detail") 5)))]
+    (s/ui [{:keys [badge]}]
+          ($ :article ($ badge {:detail (sc/async-arg detail)})))))
+
 (defn- read-until
   "Reads `reader` until the text read so far contains `s`, and returns a promise of that text."
   [^js reader text s]
@@ -47,6 +59,30 @@
                  (if (.-done chunk)
                    (js/Promise.reject (js/Error. (str "stream ended before " s ": " text)))
                    (read-until reader (str text (.decode (js/TextDecoder.) (.-value chunk))) s)))))))
+
+(defn- live-initial-frame
+  "Returns a promise of the first frame and headers of a fresh live call of `id`."
+  [id]
+  (js/Promise.
+   (fn [resolve reject]
+     (set! (.-fetch js/globalThis)
+           (fn [address ^js init]
+             (let [headers (js/Headers. (.-headers init))]
+               (.set headers "origin" "http://localhost")
+               (-> (sfs/handle-request (js/Request. (str (js/URL. (str address) "http://localhost"))
+                                                    (js/Object.assign #js {} init #js {:headers headers})))
+                   (.then (fn [^js response]
+                            (let [reader (.getReader (.-body response))]
+                              (-> (read-until reader "" "\"kind\":\"html\"")
+                                  (.then (fn [text]
+                                           (.cancel reader)
+                                           (resolve #js {:part text
+                                                         :headers (js/Object.fromEntries (.-headers response))})))
+                                  (.catch reject)))
+                            (js/Response. "" #js {:status 204})))))))
+     (let [iterable ((sc/-encoded-arguments (client/live (client/createServerReference id))))]
+       (-> (.next (.call (aget iterable js/Symbol.asyncIterator) iterable))
+           (.catch (fn [_])))))))
 
 (defn- live-response
   "Returns a promise of the headers of the live stream that answers a browser's call of
@@ -80,10 +116,24 @@
        (-> (.next (.call (aget iterable js/Symbol.asyncIterator) iterable))
            (.catch (fn [_])))))))
 
+(defn- live-reconnect-fixture
+  "Records two initial live frames for `reconnect-headline`: first with title \"first\", then
+  after the title changes to \"second\", as a fresh connection sees after a drop."
+  []
+  (swap! headline-state assoc :title "first")
+  (-> (live-initial-frame "hydration/server/reconnect-headline")
+      (.then (fn [^js first-frame]
+               (swap! headline-state assoc :title "second")
+               (-> (live-initial-frame "hydration/server/reconnect-headline")
+                   (.then (fn [^js second-frame]
+                            #js {:parts #js [(.-part first-frame)]
+                                 :reconnect (.-part second-frame)
+                                 :headers (.-headers first-frame)})))))))
+
 (defn- frame-response
   "Returns a promise of the body and the headers of the frame stream that answers a browser's
-  call of `todo-list` with `filter`, sent through Solid's browser transport to the handler."
-  [filter]
+  call of the server component `id` with `args`, sent through Solid's browser transport."
+  [id args]
   (js/Promise.
    (fn [resolve reject]
      (set! (.-fetch js/globalThis)
@@ -97,28 +147,34 @@
                                 (.then #(resolve #js {:body %
                                                       :headers (js/Object.fromEntries (.-headers response))})))
                             response))))))
-     (-> ((sc/-encoded-arguments (client/createServerReference "hydration/server/todo-list")) filter)
+     (-> (apply (sc/-encoded-arguments (client/createServerReference id)) args)
          (.catch reject)))))
 
 (defn- server-component-fixture
-  "Returns a promise of the frame streams for two filters and of a document that renders the
-  server component, for hydration.server-components-test."
+  "Returns a promise of the frame streams for two filters, an async-arg component, live
+  streams, and a document that renders the server component, for hydration.server-components-test."
   []
   (-> (js/Promise.all
-       #js [(frame-response "all")
-            (frame-response "reversed")
+       #js [(frame-response "hydration/server/todo-list" ["all"])
+            (frame-response "hydration/server/todo-list" ["reversed"])
+            (frame-response "hydration/server/async-card" [])
              ;; the document renders the first title before the live response changes it
             (-> (server/provide-request-event
                  (server/create-request-event (js/Request. "http://localhost/"))
                  #(s/render-to-string-async ($ sca/live-page {:headline headline}) {:plugins [sc/plugin]}))
-                (.then (fn [html] (.then (live-response) #(array % html)))))
+                (.then (fn [html]
+                         (-> (live-response)
+                             (.then (fn [live]
+                                      (.then (live-reconnect-fixture) #(array live html %))))))))
             (server/provide-request-event
              (server/create-request-event (js/Request. "http://localhost/"))
              #(s/render-to-string-async ($ sca/page {:todo-list todo-list :filter (s/signal "all")})
                                         {:plugins [sc/plugin]}))])
-      (.then (fn [[all reversed [live live-html] html]]
+      (.then (fn [[all reversed async-card [live live-html live-reconnect] html]]
                #js {:frames #js {"all" all "reversed" reversed}
+                    :asyncCard async-card
                     :live live
+                    :liveReconnect live-reconnect
                     :liveHtml live-html
                     :html html
                     :script (s/hydration-script)}))))

@@ -67,3 +67,31 @@
             (swap! requests conj (str address))
             (js/Promise.resolve (js/Response. body #js {:headers (.-headers live)}))))
     #(.enqueue @controller (encode (aget (.-parts live) 1)))))
+
+(defn serve-single-frame!
+  "Answers the next server component request with `frame`."
+  [^js frame]
+  (set! (.-fetch js/globalThis)
+        (fn [address _]
+          (swap! requests conj (str address))
+          (js/Promise.resolve (js/Response. (.-body frame) #js {:headers (.-headers frame)})))))
+
+(defn serve-live-reconnect!
+  "Answers the first live request with the initial frame (`parts[0]`) and returns a function
+  that drops that stream. The second request receives `reconnect`, a fresh frame with the updated
+  title."
+  [^js live]
+  (let [controller (atom nil)
+        attempt (atom 0)
+        encode #(.encode (js/TextEncoder.) %)]
+    (set! (.-fetch js/globalThis)
+          (fn [address _]
+            (let [n (swap! attempt inc)
+                  text (if (= 1 n) (aget (.-parts live) 0) (.-reconnect live))
+                  body (js/ReadableStream.
+                        #js {:start (fn [c]
+                                      (when (= 1 n) (reset! controller c))
+                                      (.enqueue c (encode text)))})]
+              (swap! requests conj (str address))
+              (js/Promise.resolve (js/Response. body #js {:headers (.-headers live)})))))
+    (fn [] (.error @controller (js/Error. "dropped")))))

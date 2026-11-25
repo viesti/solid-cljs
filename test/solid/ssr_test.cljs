@@ -229,8 +229,26 @@
         "the trace continues from traceparent")
     (s/configure-server-errors {:on-error (fn [error _] (swap! reported conj (.-message error)))})
     (solid.server/report-request-failure (js/Error. "upstream down") event)
+    (html (s/try ($ (fn [_] (throw (js/Error. "render boom"))))
+                 (catch _ ($ :span "fallback"))))
     (s/configure-server-errors {:on-error nil})
-    (is (= ["upstream down"] @reported) "a request failure reaches the error hook")))
+    (is (= ["upstream down" "render boom"] @reported) "request failures and render errors reach the error hook")))
+
+(deftest response-helpers
+  (let [^js plain (s/respond {:ok true})
+        ^js custom (s/respond {:ok true} {:status 201 :headers {"x-custom" "yes"} :revalidate "todos"})
+        ^js rel (s/reload)
+        ^js rel-custom (s/reload {:status 204 :headers {"x-from" "reload"} :revalidate "items"})]
+    (is (= 200 (.-status plain)))
+    (is (= {:ok true} (.-value plain)))
+    (is (= 201 (.-status custom)))
+    (is (= "yes" (.get (.-headers custom) "x-custom")))
+    (is (= "todos" (.get (.-headers custom) "x-revalidate")))
+    (is (instance? js/Response rel))
+    (is (= 200 (.-status rel)))
+    (is (= 204 (.-status rel-custom)))
+    (is (= "reload" (.get (.-headers rel-custom) "x-from")))
+    (is (= "items" (.get (.-headers rel-custom) "x-revalidate")))))
 
 (defui clojure-data-view []
   (let [todos (s/memo #(js/Promise.resolve [{:id 1 :title "a" :tags #{:x}} {:id 2 :title "b"}]))]

@@ -23,3 +23,12 @@
   [{:keys [todo-list filter]}]
   (let [todos (sc/server-component (todo-list @filter))]
     ($ :main (s/loading ($ :p "loading") ($ todos {:editor editor :pending pending})))))
+
+(defui async-badge [{:keys [detail]}]
+  (s/loading ($ :em "loading") ($ :strong detail)))
+
+(defui async-card-page
+  "Renders a server component that passes an `sc/async-arg` promise to its `:badge` slot."
+  [{:keys [card]}]
+  (let [c (sc/server-component (card))]
+    ($ :main (s/loading ($ :p "loading") ($ c {:badge async-badge})))))

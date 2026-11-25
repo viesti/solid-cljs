@@ -72,9 +72,11 @@ branch otherwise. Decide the id scheme (namespace and name).
 
 Wrappers in src/solid/core.cljs ("More of Solid's API" and the server utilities), `s/until` as
 a macro, and `[handler data]` vectors for events. Tests: the "Event data pairs, until..." test
-in test/vitest/features.cljs and `cookies` in test/solid/ssr_test.cljs. Thin wrappers without
-their own tests: `enable-external-source`, `configure-client-errors`, `reset-error-halt!`,
-`on-hydration-end`, `lazy-module`, `respond`, `reload`, `configure-server-errors`.
+in test/vitest/features.cljs, test/vitest/api_extras.cljs (`enable-external-source`,
+`configure-client-errors`, `reset-error-halt!`, `on-hydration-end`, `lazy-module`),
+test/solid/hydration_check.cljs (`on-hydration-end` during hydration), and `cookies`,
+`response-helpers` (`respond`, `reload`) and `server-observability` (`configure-server-errors`)
+in test/solid/ssr_test.cljs.
 
 `markRaw`, `until`, `NotReadyError`, `TimeoutError`, `createOwner`, `isDisposed`, `repeat`,
 `enableExternalSource`, `configureClientErrors`, `resetErrorHalt`, `isHydrating`,
@@ -150,17 +152,21 @@ Decisions and findings:
   server component and slot fills directly, and an unresolved element computed its hydration key
   outside any owner.
 - `install!` indexes the document's frames on first use, so it must run after the body exists.
-- `asyncArg` has no test of its own.
+- `async-arg` (`asyncArg`) is tested in `async-slot-arg` in test/solid/server_components_test.cljs
+  (frame stream and document render) and in test/hydration/server_components_test.cljs (settling
+  in a browser slot fill). Note that `$` wraps dynamic props in a getter, so the promise passed
+  to `async-arg` should be bound outside `s/ui` (or `$`) rather than constructed inside the prop
+  expression.
 
 ### 8. Live server components — done
 
 `{:live true}` and `{:broadcast true}` on `defservercomponent` wrap the reference with Solid's
 `live` and `broadcast` on both sides (`declare-call` in src/solid/server_components.cljs).
 Tests: `live-frame-stream`, `broadcast-frame-stream` and `live-document-render` in
-test/solid/server_components_test.cljs, the live update in
+test/solid/server_components_test.cljs, the live update and reconnect/`onstatus` tests in
 test/hydration/server_components_test.cljs, and adoption of a live component from the document
-in test/hydration/live_server_components_test.cljs. The browser tests play back a stream that
-hydration.server recorded in two parts, and helpers shared by both files are in
+in test/hydration/live_server_components_test.cljs. The browser tests play back streams that
+hydration.server recorded, and helpers shared by both files are in
 test/solid/frame_fixtures.cljs.
 
 Decisions and findings:
@@ -174,8 +180,9 @@ Decisions and findings:
   same page is not adopted. The live adoption test has a file of its own for a fresh page.
 - A live hole stops updating (`SSR_LIVE_HOLE_LATCHED`) when its re-run creates an async source,
   or when a live attribute calls a slot. Keyed slots in the content of a live list keep
-  updating (checked in Node while planning step 9). Not tested: reconnects after a dropped
-  connection and the `onstatus` hook.
+  updating (checked in Node while planning step 9). Reconnects after a dropped connection and
+  the `onstatus` hook (`connected` -> `reconnecting` -> `connected` -> `closed`) are tested in
+  test/hydration/server_components_test.cljs.
 
 ### 9. Server features in the examples — done
 
@@ -287,9 +294,10 @@ compiler's runtime helpers and wire constants. Work in this order:
    test/vitest/custom_elements.cljs and `properties-on-the-server` in test/solid/ssr_test.cljs.
 4. Live data from server functions — done. `{:live true}` and `{:broadcast true}` on
    `defserverfn`. The transport maps each value to EDN, and the browser side maps them back,
-   keeping the live source brand and passing `onstatus` through. Tests: `live-values` and
-   `broadcast-values` in test/solid/server_functions_test.cljs. Not tested: a memo over a live
-   server function in the browser, and reconnects.
+   keeping the live source brand and passing `onstatus` through. Tests: `live-values`,
+   `broadcast-values` and `live-reconnect-and-onstatus` in test/solid/server_functions_test.cljs,
+   and a browser memo over a live server function with reconnect and `onstatus` in
+   test/vitest/api_extras.cljs.
 5. Forms without JavaScript — done. `sf/action-url` wraps `serverFunctionActionUrl`. The EDN
    transport treats a call that is not one string argument as a form post: the body gets the
    bound arguments and the `FormData`, and its raw result goes to Solid's default no-JS
@@ -311,7 +319,7 @@ compiler's runtime helpers and wire constants. Work in this order:
     `isEqual`, the core's default reference equality, which `=` and `identical?` cover.
 11. `s/wait-asset` — done.
 12. `solid.server/trace-context` and `solid.server/report-request-failure` — done.
-13. `sc/frame-applied-event` — done (a constant, untested).
+13. `sc/frame-applied-event` — done, tested in test/hydration/server_components_test.cljs.
     Tests for 9 to 12: "Boundary primitives, store keys and assets" in
     test/vitest/features.cljs and `server-observability` in test/solid/ssr_test.cljs.
 14. `solid.router` — done: `router` from route maps, the histories, `pending-links`,
@@ -346,8 +354,9 @@ resolved at each call, so a default set in an entry applies to functions defined
 The internal helpers are renamed `sf/-caller`, `sf/-live-caller` and `sc/-encoded-arguments`,
 each taking an optional encoding. A form post is now recognised by a `FormData` last argument
 instead of by not being one string, so an encoding may produce values other than strings. The
-README's transit example was checked against transit-js's sources (its `m` tag reads as
-`js/Date`) but not compiled. Tests: `dates-in-edn` and `custom-encodings` in
+README's transit example was compiled and run against `com.cognitect/transit-cljs` 0.8.280
+(round-tripping `Money` and `js/Date` through `sfs/handle-request`), fixing a missing
+`:refer [defserverfn]` in its `ns` form. Tests: `dates-in-edn` and `custom-encodings` in
 test/solid/server_functions_test.cljs, `frame-stream-with-an-encoding` in
 test/solid/server_components_test.cljs.
 
@@ -675,22 +684,27 @@ The user approved the proposal (2026-11-21). Done:
   commands (`/plugin marketplace add viesti/solid-cljs#solid-2`, since the default branch is
   `main`), copying the folder, an AGENTS.md line, and installing from the pinned commit.
 
-Not verified: installing through the skills CLI or Claude Code's plugin commands. The `claude`
-CLI is not installed here, and running `npx skills` was refused by this session's permission
-check, so neither `claude plugin validate` nor an install has been run. The JSON files parse,
+Verified installing through the skills CLI: `npx skills add viesti/solid-cljs@a09b5c11cb9c0d1de9715d2615e36906460e0210`
+clones the pinned commit, installs `SKILL.md` and `references/*.md` into `.claude/skills/solid-cljs`,
+and records the commit in `skills-lock.json`. Not verified: Claude Code's `/plugin marketplace add`
+and `claude plugin validate`, since the `claude` CLI is not installed here. The JSON files parse,
 and the formats follow the vendors' documentation as of November 2026.
 
-The README and the four examples pin `aea9e45`, the commit that adds the skill, so that a
-project pinning the README's commit can install the skill from the same commit. All four build
-against it and pass `yarn test:browser`, and the JVM example's `yarn test` passes.
+The README and the four examples now pin `a09b5c1` (step 14: ClojureScript data in async hydration
+values, which also updated `skills/solid-cljs/references/server.md`). All four build with
+`yarn build` against it and pass `yarn test:browser` in both production and development mode
+(`yarn dev` + `BASE_URL=http://localhost:3000 yarn test:browser`), and the JVM example's
+`yarn test` passes. (On a cold dev start in `examples/shadow-cljs`, `yarn dev` hit a startup race
+where `out/server.js` existed before `cljs-runtime` finished flushing; once `.shadow-cljs/builds/server/dev`
+was populated, `yarn dev` started cleanly and passed `yarn test:browser`.)
 
 ### Status
 
-Steps 1 to 12 are done (12.4 without a development-mode check, 12.5 as findings with a
-proposal not to build the plugin encoding). Step 13 is done; its open question was answered by
-moving the JVM server functions into the library in step 16, which is done. Step 15 is done.
-Step 17 is done, with installing the skill through the skills CLI and Claude Code not yet
-tried. Step 14 is done.
+Steps 1 to 17 are done (12.5 as findings with a proposal not to build the plugin encoding; step 17
+verified with `npx skills add`, while Claude Code's `/plugin` commands remain unverified because
+the `claude` CLI is not installed here). All previously noted test gaps from steps 4, 7, 8 and 11
+are now covered, the README transit example was compiled and verified, and all four examples pass
+in both production and development mode against the pinned commit `a09b5c1`.
 
 ### Deferred
 

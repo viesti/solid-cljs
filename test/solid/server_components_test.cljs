@@ -91,6 +91,36 @@
              (.catch (fn [e] (is false (str e))))
              (.finally done))))
 
+(defservercomponent async-slot-card [label]
+  (let [detail (js/Promise. (fn [resolve]
+                              (js/setTimeout #(resolve (str "loaded:" label)) 5)))]
+    (s/ui [{:keys [badge]}]
+          ($ :article ($ badge {:detail (sc/async-arg detail)})))))
+
+(s/defui async-badge [{:keys [detail]}]
+  (s/loading ($ :em "loading") ($ :strong detail)))
+
+(s/defui async-slot-page []
+  (let [card (sc/server-component (async-slot-card "ok"))]
+    ($ :main ($ card {:badge async-badge}))))
+
+(deftest async-slot-arg
+  (async done
+         (-> (call "solid/server-components-test/async-slot-card" ["stream"])
+             (.then (fn [^js response] (.text response)))
+             (.then (fn [body]
+                      (is (str/includes? body "slot:badge#0") "the frame stream includes the slot")
+                      (is (str/includes? body "loaded:stream") "and streams the resolved async-arg value")))
+             (.then (fn []
+                      (server/provide-request-event
+                       (server/create-request-event (js/Request. "http://localhost/"))
+                       #(s/render-to-string-async ($ async-slot-page) {:plugins [sc/plugin]}))))
+             (.then (fn [html]
+                      (is (str/includes? html "<strong>loaded:ok</strong>")
+                          "document render settles the async-arg into the slot fill")))
+             (.catch (fn [e] (is false (str e))))
+             (.finally done))))
+
 (def ^:private headline-state (atom {:title "first" :listeners #{}}))
 
 (defn- publish! [title]

@@ -46,6 +46,9 @@
         server-span (q container "#counter span")
         server-li (q container "#todos li")
         errors (atom [])
+        hydration-ended (atom false)
+        hydrated (js/Promise. (fn [resolve]
+                                (s/on-hydration-end #(do (reset! hydration-ended true) (resolve nil)))))
         log-error (.-error js/console)]
     (.. (expect (.-textContent server-async)) (toBe "Moi, world"))
     (set! (.-error js/console) (fn [& xs] (swap! errors conj (apply str xs)) (apply log-error xs)))
@@ -83,4 +86,6 @@
                               :id2 #uuid "00000000-0000-0000-0000-000000000001"
                               :kind 'task :ns/k :x/y :path '(1 2) :by-pair {[1 2] "pair"}}
                              {:id 2 :title "second" :tags #{}}]
-                          "pair" true])))))
+                          "pair" true])))
+    (-> hydrated
+        (.then (fn [] (.. (expect @hydration-ended) (toBe true)))))))
