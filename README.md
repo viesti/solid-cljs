@@ -34,7 +34,7 @@ The Solid 2 port is not released to Clojars yet. Depend on it with a git depende
 ```clojure
 {:deps {com.github.roman01la/solid-cljs
         {:git/url "https://github.com/viesti/solid-cljs"
-         :git/sha "aea9e4558a46a1a36fa2a766ccb7bd5dcd397662"}}}
+         :git/sha "a09b5c11cb9c0d1de9715d2615e36906460e0210"}}}
 ```
 
 Then install the npm packages it requires:
@@ -90,7 +90,7 @@ dependencies from deps.edn instead of shadow-cljs.edn:
 {:paths ["src"]
  :deps {com.github.roman01la/solid-cljs
         {:git/url "https://github.com/viesti/solid-cljs"
-         :git/sha "aea9e4558a46a1a36fa2a766ccb7bd5dcd397662"}}}
+         :git/sha "a09b5c11cb9c0d1de9715d2615e36906460e0210"}}}
 ```
 
 ```js
@@ -802,7 +802,7 @@ type. Transit carries timestamps as `js/Date`:
 ```clojure
 (ns app.transit
   (:require [cognitect.transit :as t]
-            [solid.server-functions :as sf]))
+            [solid.server-functions :as sf :refer [defserverfn]]))
 
 (defrecord Money [cents currency])
 

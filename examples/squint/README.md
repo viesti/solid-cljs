@@ -54,7 +54,7 @@ BASE_URL=http://localhost:3000 yarn test:browser
   ```clojure
   :deps {com.github.roman01la/solid-cljs
          {:git/url "https://github.com/viesti/solid-cljs"
-          :git/sha "aea9e4558a46a1a36fa2a766ccb7bd5dcd397662"
+          :git/sha "a09b5c11cb9c0d1de9715d2615e36906460e0210"
           :deps/root "squint"}}
   ```
   `:deps/root "squint"` selects the repository's squint directory, which holds only

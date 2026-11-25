@@ -2,7 +2,7 @@
  :deps {org.clojure/clojure {:mvn/version "1.12.7"}
         ;; The browser build's macros and runtime, and on the JVM the server functions
         com.github.roman01la/solid-cljs {:git/url "https://github.com/viesti/solid-cljs"
-                                         :git/sha "aea9e4558a46a1a36fa2a766ccb7bd5dcd397662"}}
+                                         :git/sha "a09b5c11cb9c0d1de9715d2615e36906460e0210"}}
  :aliases
  {;; The JVM server
   :server {:extra-deps {ring/ring-jetty-adapter {:mvn/version "1.15.6"}
