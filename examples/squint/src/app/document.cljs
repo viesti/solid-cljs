@@ -14,7 +14,11 @@
          [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
          [:title "Solid with Squint"]
          [:link {:rel "icon" :href "data:,"}]
-         [HydrationScript]]
+         [HydrationScript]
+         ;; Squint's Vite plugin adds its browser REPL client to index.html, which start mode
+         ;; does not have, so the document loads the client itself in development
+         (when (.. js/import.meta -env -DEV)
+           #jsx [:script {:type "module" :src "/@id/__x00__virtual:squint-repl-client"}])]
         [:body (.-children props)]])
 
 (def default Document)

@@ -67,7 +67,9 @@ BASE_URL=http://localhost:3000 yarn test:browser
   server (`start.nodeServer`). The `dev` and `build` scripts run `squint compile` first, since the
   Solid plugin checks that the app module exists when it starts.
 - **src/app/app.cljs** has the components and default-exports the root component, and
-  **src/app/document.cljs** default-exports the document around it.
+  **src/app/document.cljs** default-exports the document around it. In development the document
+  also loads Squint's browser REPL client, which the Squint plugin otherwise adds to index.html,
+  a file that start mode does not have.
 - **src/app/style.css** holds the styles. document.cljs imports it with a static `import`
   written with `js*`, since in development Squint turns a `:require` into a dynamic import,
   which Solid's plugin does not follow. The plugin then puts the styles in the server-rendered
