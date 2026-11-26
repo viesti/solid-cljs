@@ -195,10 +195,10 @@ brace-expansion@^2.0.2:
   dependencies:
     balanced-match "^1.0.0"
 
-clojurific@0.12.15:
-  version "0.12.15"
-  resolved "https://registry.yarnpkg.com/clojurific/-/clojurific-0.12.15.tgz#97c3d5c803b9209af19461b71440b38abae07536"
-  integrity sha512-hFAYbfBPy8yBDM40dWTerMeuTbCP/LsLcDUIoYW/hCs+zhtov226g0I7oDevoom7Mu6rDNmIWLcOKtnMLnRODQ==
+clojurific@0.12.16:
+  version "0.12.16"
+  resolved "https://registry.yarnpkg.com/clojurific/-/clojurific-0.12.16.tgz#1c98f0e11707f68aed09de76d0bdeef759f6623e"
+  integrity sha512-au9tstEI7abvqy1RMxrfPYkcBh4fa9Upyx85fuzACpeg6MD7mVg52FH2M9QIDJiuH6BNj+/v09Ia/0dZHrpLeA==
 
 csstype@^3.1.0:
   version "3.2.4"

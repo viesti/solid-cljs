@@ -75,5 +75,5 @@ and the server, which changes the rest:
   code changed and keeps the state of the others.
 - **package.json** sets `"type": "module"`, which Clojurific requires.
 
-Clojurific is experimental, and version 0.12.15 was tested here. In that version a
-`^:dev/after-load` hook does not run after hot updates, which `:solid/refresh` makes unneeded.
+Clojurific is experimental, and version 0.12.16 was tested here. In version 0.12.15 a
+`^:dev/after-load` hook did not run after hot updates, which `:solid/refresh` makes unneeded.

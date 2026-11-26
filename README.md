@@ -110,8 +110,8 @@ export default defineConfig({
 ```
 
 Install it with `npm i -D clojurific vite@8`. `npx vite` serves the page with hot reloading and
-`npx vite build` bundles it. Clojurific is experimental (version 0.12.15 was tested here).
-In that version a `^:dev/after-load` hook does not run after hot updates. Use `:solid/refresh`
+`npx vite build` bundles it. Clojurific is experimental (version 0.12.16 was tested here).
+In version 0.12.15 a `^:dev/after-load` hook did not run after hot updates. Use `:solid/refresh`
 instead (see Hot reloading), set in a `cljs.edn` profile for the dev server:
 
 ```clojure
