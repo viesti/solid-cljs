@@ -137,7 +137,7 @@ return <li><span class={({"done": props.done})}>{props.title}</span><button onCl
 [.clj-kondo](.clj-kondo). To clj-kondo, the `"use server"` string at the start of a function body
 looks like a misplaced docstring and an unused value, and the warnings could be silenced one by
 one with `#_{:clj-kondo/ignore [:misplaced-docstring :unused-value]}` before each string.
-Instead, a hook on `defn` and `fn` ([hooks/directives.clj](.clj-kondo/hooks/directives.clj))
+Instead, a hook on `defn`, `defn-` and `fn` ([hooks/directives.clj](.clj-kondo/hooks/directives.clj))
 leaves out a `"use server"` or `"use client"` string that follows the argument vector and comes
 before more body forms, so the rest of the body is linted as usual and any other stray string
 still warns. To use it in another Squint project, copy the hook file and the `:hooks` entry of

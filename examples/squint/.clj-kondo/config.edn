@@ -4,6 +4,8 @@
  ;; a misplaced docstring or an unused value: the hook leaves it out before linting
  :hooks {:analyze-call {clojure.core/defn hooks.directives/defn-or-fn
                         cljs.core/defn hooks.directives/defn-or-fn
+                        clojure.core/defn- hooks.directives/defn-or-fn
+                        cljs.core/defn- hooks.directives/defn-or-fn
                         clojure.core/fn hooks.directives/defn-or-fn
                         cljs.core/fn hooks.directives/defn-or-fn}}
  :linters {;; Squint's generator forms
