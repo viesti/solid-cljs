@@ -148,6 +148,38 @@ tells clojure-lsp that the default exports (the entries of Solid's start mode) a
 (loaded with a dynamic import and called through interop) are used. Write `await` rather than
 Squint's older `js-await`, which clj-kondo does not know.
 
+### Why `"use server"` and not a macro
+
+A Squint macro could hide the directive, much as solid-cljs's `defserverfn` defines server
+functions without one:
+
+```clojure
+(defmacro defn-server [fn-name params & body]
+  `(defn ~(vary-meta fn-name assoc :async true) ~params "use server" ~@body))
+
+(defn-server add-todo [title]
+  (.add! (await (db)) (.trim title) (author)))
+```
+
+It compiles to the same JavaScript as the hand-written function, reads more like Clojure, and
+cannot misplace the directive or forget `^:async`. The example keeps `"use server"` anyway:
+
+- It is what Solid's compiler reads, and what Solid's documentation and JavaScript examples
+  use, so code translates line by line and the compiler's errors point at code that is visible.
+- Server functions keep JavaScript's rules either way. A broadcast render, for example, cannot
+  use the bindings of the server function's body, and a Clojure-looking macro would hide that
+  these are directive functions.
+- clj-kondo cannot lint the macro by its name alone. With `:lint-as` to `defn`, its
+  `await-without-async-fn` check reports every `await` inside, since it does not see the
+  `^:async` that the macro adds. A `:macroexpand` hook fixes that, but needs a second copy of the
+  macro in .clj-kondo, besides the one in Squint's `:paths`.
+- Squint projects have no JVM classpath for clj-kondo to find configuration in, so a macro
+  shipped by a library would still need its lint configuration copied into each project, as
+  the directive hook does now.
+
+The macro was tried in a scratch project and not kept. It remains an option for a project that
+prefers it, with the `:macroexpand` hook for linting.
+
 ## Hot reloading
 
 Solid's plugin hot reloads changed components through its refresh transform, keeping the state of
