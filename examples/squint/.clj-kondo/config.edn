@@ -1,0 +1,13 @@
+;; clj-kondo (and clojure-lsp) configuration for Squint code. Check with
+;; `clojure-lsp diagnostics` or `clj-kondo --lint src`.
+{;; A "use server" directive at the start of a function body is code for Solid's compiler, not
+ ;; a misplaced docstring or an unused value: the hook leaves it out before linting
+ :hooks {:analyze-call {clojure.core/defn hooks.directives/defn-or-fn
+                        cljs.core/defn hooks.directives/defn-or-fn
+                        clojure.core/fn hooks.directives/defn-or-fn
+                        cljs.core/fn hooks.directives/defn-or-fn}}
+ :linters {;; Squint's generator forms
+           :unresolved-symbol {:exclude [js-yield js-yield*]}
+           ;; The default exports are the entries of Solid's start mode, and app.db is loaded
+           ;; with a dynamic import, so its functions are called through interop
+           :clojure-lsp/unused-public-var {:exclude [app.app/default app.document/default app.db]}}}

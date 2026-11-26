@@ -162,7 +162,9 @@ server.
 
 - [examples/shadow-cljs](examples/shadow-cljs) uses solid-cljs with shadow-cljs and Vite.
 - [examples/clojurific](examples/clojurific) uses solid-cljs with Clojurific and a Hono server.
-- [examples/squint](examples/squint) uses Squint with Solid's own compiler and Vite plugin.
+- [examples/squint](examples/squint) uses Squint with Solid's own compiler and Vite plugin. Its
+  README shows a clj-kondo hook that keeps `"use server"` directives from being linted as
+  misplaced docstrings and unused values.
 
 A fourth example keeps the shared todo list but moves its server to the JVM:
 

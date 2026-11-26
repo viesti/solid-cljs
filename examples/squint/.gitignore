@@ -5,3 +5,4 @@ dist
 todos.db
 test-results
 playwright-report
+.clj-kondo/.cache

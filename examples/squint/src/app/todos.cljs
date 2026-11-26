@@ -34,19 +34,19 @@
 ;; Returns the new todo, whose js/Date timestamps Solid's serializer carries to the browser
 (defn ^:async add-todo [title]
   "use server"
-  (.add! (js-await (db)) (.trim title) (author)))
+  (.add! (await (db)) (.trim title) (author)))
 
 (defn ^:async toggle-todo [id]
   "use server"
-  (.toggle! (js-await (db)) id))
+  (.toggle! (await (db)) id))
 
 (defn ^:async rename-todo [id title]
   "use server"
-  (.rename! (js-await (db)) id (.trim title)))
+  (.rename! (await (db)) id (.trim title)))
 
 (defn ^:async remove-todo [id]
   "use server"
-  (.remove! (js-await (db)) id))
+  (.remove! (await (db)) id))
 
 (defn ^:async sign-in [user-name]
   "use server"
@@ -64,7 +64,7 @@
   (broadcast
    (^:async fn []
      "use server"
-     (.track-viewer! (js-await (db)))
+     (.track-viewer! (await (db)))
      ;; The render is shared by every viewer, so it reads nothing from this body
      (fn [props]
        (let [state (createMemo #(from subscribe))
