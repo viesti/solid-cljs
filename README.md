@@ -1141,6 +1141,15 @@ Import it into a project once, after adding solid-cljs to its dependencies:
 clj-kondo --copy-configs --dependencies --lint "$(clojure -Spath)"
 ```
 
+`clojure-lsp diagnostics` does the same import into .clj-kondo/imports. A .cljc file of server
+functions needs one more setting, since clj-kondo lints .cljc files as both Clojure and
+ClojureScript and the bodies run on one side only. On a Clojure server, where the requires of
+the bodies are in `:clj` branches, lint such files as Clojure with `{:cljc {:features [:clj]}}`.
+With a custom reader feature such as shadow-cljs's `:reader-features #{:server}`, clj-kondo
+cannot read the `:server` branches at all, so lint the file as ClojureScript with
+`{:cljc {:features [:cljs]}}` and exclude the names that the branches define. The examples'
+.clj-kondo/config.edn files show both.
+
 The compiler also warns about reactivity mistakes in `defui` bodies: reactive reads outside a
 tracked scope, writes to signals while the body runs, and destructured props whose names the
 body binds again.

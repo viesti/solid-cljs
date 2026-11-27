@@ -5,6 +5,7 @@ dist
 .cpcache
 out
 todos.db
-.clj-kondo
+.clj-kondo/.cache
+.clj-kondo/imports
 test-results
 playwright-report

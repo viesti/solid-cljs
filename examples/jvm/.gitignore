@@ -5,7 +5,8 @@ target
 .shadow-cljs
 .cpcache
 todos.db
-.clj-kondo
+.clj-kondo/.cache
+.clj-kondo/imports
 .lsp
 .nrepl-port
 test-results

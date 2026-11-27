@@ -58,6 +58,15 @@ BASE_URL=http://localhost:3000 yarn test:browser
 | A row's checkbox and edit field are client components, and an open edit keeps its draft while other changes arrive | Slots with `:$key` | `check` and `actions` in demo/app.cljs |
 | "Signed in as Ann", kept in a cookie, and each todo records who added it | `s/respond` with `s/serialize-cookie`, `s/request-event` and `s/parse-cookie-header` | `sign-in` and `author` in demo/todos.cljc |
 
+## Linting
+
+`clojure-lsp diagnostics` checks the code with [.clj-kondo/config.edn](.clj-kondo/config.edn) and
+the configuration that solid-cljs exports, which it copies into .clj-kondo/imports. demo/todos.cljc
+is .cljc only to read the `:server` reader feature that the server build sets, and clj-kondo
+reads only `:clj` and `:cljs` branches. The configuration lints the file as ClojureScript, so the
+browser side is checked, and excludes `db` and `author`, which the `:server` branches define.
+The server side of the file is not linted.
+
 ## How it is set up
 
 - **deps.edn** pulls solid-cljs from GitHub at a pinned commit. shadow-cljs reads it because

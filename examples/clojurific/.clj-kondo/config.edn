@@ -1,0 +1,5 @@
+;; clj-kondo (and clojure-lsp) configuration. `clojure-lsp diagnostics` copies the configuration
+;; that solid-cljs exports into .clj-kondo/imports, which clj-kondo loads.
+{:linters {;; demo.server/handler is the server entry's default export (vite.config.mjs), and
+           ;; demo.client/dispose the result of hydrating
+           :clojure-lsp/unused-public-var {:exclude [demo.server/handler demo.client/dispose]}}}

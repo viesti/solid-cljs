@@ -1,0 +1,9 @@
+;; clj-kondo (and clojure-lsp) configuration. `clojure-lsp diagnostics` copies the configuration
+;; that solid-cljs exports into .clj-kondo/imports, which clj-kondo loads.
+{;; demo.todos, the only .cljc file, is linted as Clojure only. The bodies of its server
+ ;; functions run on the JVM: the browser build (:solid/render :dom) leaves them out, and their
+ ;; requires are in :clj branches. (:cljc has no effect inside :config-in-ns.)
+ :cljc {:features [:clj]}
+ :linters {;; user has the REPL helpers, demo.client/dispose is the result of rendering, and
+           ;; list-todos is called by test/protocol.mjs only
+           :clojure-lsp/unused-public-var {:exclude [user demo.client/dispose demo.todos/list-todos]}}}

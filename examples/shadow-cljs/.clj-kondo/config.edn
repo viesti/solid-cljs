@@ -1,0 +1,11 @@
+;; clj-kondo (and clojure-lsp) configuration. `clojure-lsp diagnostics` copies the configuration
+;; that solid-cljs exports into .clj-kondo/imports, which clj-kondo loads.
+{;; demo.todos is .cljc only to read the :server feature, which the server build sets with
+ ;; :reader-features. clj-kondo knows only :clj and :cljs, so it lints the file as ClojureScript
+ ;; and does not see the :server branches: the require of app.db and the author function.
+ :cljc {:features [:cljs]}
+ :config-in-ns {demo.todos {:linters {:unresolved-namespace {:exclude [db]}
+                                      :unresolved-symbol {:exclude [author]}}}}
+ :linters {;; demo.server/main is the server build's :main, demo.client/dispose the result of
+           ;; hydrating, and app.db is called from the :server branches of demo.todos
+           :clojure-lsp/unused-public-var {:exclude [demo.server/main demo.client/dispose demo.db]}}}

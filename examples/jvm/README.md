@@ -55,6 +55,13 @@ answers (test/protocol.mjs, started by test/demo/server_functions_test.clj).
 `yarn build:local`, `yarn test:local` and `yarn dev:local` use the solid-cljs checkout this
 folder lives in instead of the pinned commit, through the `:local` alias in deps.edn.
 
+## Linting
+
+`clojure-lsp diagnostics` checks the code with [.clj-kondo/config.edn](.clj-kondo/config.edn) and
+the configuration that solid-cljs exports, which it copies into .clj-kondo/imports. demo/todos.cljc
+is linted as Clojure only: the bodies of its server functions run on the JVM, with their
+requires in `:clj` branches, and the browser build leaves them out.
+
 ## Browser tests
 
 test/browser/shared-todos.spec.mjs checks the shared list in two windows with Playwright:
